@@ -54,6 +54,11 @@ const envSchema = z.object({
   SESSION_SECRET: z
     .string()
     .min(32, 'SESSION_SECRET must be at least 32 characters'),
+
+  // Authorization
+  ADMIN_KEYS: z
+    .string()
+    .min(1, 'ADMIN_KEYS is required'),
 });
 
 // ── Validate ──────────────────────────────────────────────────────────────────
@@ -97,6 +102,17 @@ function resolveAllowedOrigins(): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Returns the list of configured Global Admin Keys.
+ */
+function resolveAdminKeys(): string[] {
+  const raw = env.ADMIN_KEYS || '';
+  return raw
+    .split(',')
+    .map((k) => k.trim())
+    .filter(Boolean);
+}
+
 // ── Exported typed config ─────────────────────────────────────────────────────
 
 export const config = {
@@ -118,4 +134,6 @@ export const config = {
     cookieName: 'veil_session',
     maxAgeMs: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
+
+  adminKeys: resolveAdminKeys(),
 } as const;

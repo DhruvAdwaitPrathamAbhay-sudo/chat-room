@@ -252,14 +252,23 @@ export async function authenticateAdmin(
     });
   }
 
-  // Verify this user IS the admin
-  if (room.ownerId !== userId) {
-    throw Object.assign(new Error('You are not the admin of this room.'), { statusCode: 403, code: 'FORBIDDEN' });
-  }
+  // Find or create admin membership for this authenticated session
+  let membership = await findMembership(room.id, userId);
+  if (!membership) {
+    const usedNames = await getUsedAnonymousNames(room.id);
+    const anonName = generateAnonymousName(usedNames);
+    const anonAvatar = generateAnonymousAvatar();
 
-  const membership = await findMembership(room.id, userId);
-  if (!membership || membership.role !== 'admin') {
-    throw Object.assign(new Error('Admin membership not found.'), { statusCode: 403, code: 'FORBIDDEN' });
+    const result = await query(
+      `INSERT INTO room_members (room_id, user_id, anonymous_name, anonymous_avatar, role, identity_visible, status)
+       VALUES ($1, $2, $3, $4, 'admin', false, 'active')
+       RETURNING *`,
+      [room.id, userId, anonName, anonAvatar]
+    );
+    membership = rowToMember(result.rows[0]);
+  } else if (membership.role !== 'admin') {
+    await query(`UPDATE room_members SET role = 'admin', updated_at = NOW() WHERE id = $1`, [membership.id]);
+    membership.role = 'admin';
   }
 
   return { room, membership };

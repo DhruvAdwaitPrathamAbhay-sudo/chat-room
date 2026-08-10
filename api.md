@@ -198,22 +198,16 @@ Authentication:
   "name": "Late Night Chaos",
   "description": "What's happening in this room?",
   "password": "room-password",
-  "adminKey": "optional-custom-key",
+  "globalAdminKey": "VEIL-key1",
   "maxMembers": 50
 }
 ```
 
 ### Important
 
-`adminKey` may be omitted if the server generates one.
+`globalAdminKey` is **REQUIRED**. It must match one of the global admin keys configured in the backend environment.
 
-Recommended behavior:
-
-```text id="v4q9k2"
-adminKey omitted
-        ↓
-server generates secure Admin Key
-```
+The backend will authorize creation based on this key, and then generate a distinct, room-specific `adminKey` which will be returned ONCE in the response for the creator to use.
 
 ---
 

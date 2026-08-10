@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/requireAuth';
+import { requireAuth, ensureAuth } from '../middleware/requireAuth';
 import {
   createRoomHandler,
   joinRoomHandler,
@@ -19,31 +19,30 @@ import {
 
 const router = Router();
 
-// All room routes require authentication
-router.use(requireAuth);
+// Room Creation & Joins auto-provision user session if absent
+router.post('/', ensureAuth, createRoomHandler);
+router.post('/:roomCode/join', ensureAuth, joinRoomHandler);
+router.post('/:roomCode/admin-access', ensureAuth, adminAccessHandler);
 
-// Room CRUD
-router.post('/', createRoomHandler);
-router.get('/:roomCode', getRoomHandler);
-router.post('/:roomCode/join', joinRoomHandler);
-router.post('/:roomCode/admin-access', adminAccessHandler);
-router.post('/:roomCode/close', closeRoomHandler);
+// Protected room routes require existing active session
+router.get('/:roomCode', requireAuth, getRoomHandler);
+router.post('/:roomCode/close', requireAuth, closeRoomHandler);
 
 // Room data
-router.get('/:roomCode/members', getMembersHandler);
-router.get('/:roomCode/messages', getMessagesHandler);
+router.get('/:roomCode/members', requireAuth, getMembersHandler);
+router.get('/:roomCode/messages', requireAuth, getMessagesHandler);
 
-// Identity management (admin only — verified in controller)
-router.post('/:roomCode/members/:memberId/reveal', revealIdentityHandler);
-router.post('/:roomCode/members/:memberId/hide', hideIdentityHandler);
+// Identity management (admin only — verified in controller + DB)
+router.post('/:roomCode/members/:memberId/reveal', requireAuth, revealIdentityHandler);
+router.post('/:roomCode/members/:memberId/hide', requireAuth, hideIdentityHandler);
 
-// Moderation (admin only — verified in controller)
-router.post('/:roomCode/members/:memberId/mute', muteMemberHandler);
-router.post('/:roomCode/members/:memberId/unmute', unmuteMemberHandler);
-router.post('/:roomCode/members/:memberId/remove', removeMemberHandler);
-router.post('/:roomCode/members/:memberId/ban', banMemberHandler);
+// Moderation (admin only — verified in controller + DB)
+router.post('/:roomCode/members/:memberId/mute', requireAuth, muteMemberHandler);
+router.post('/:roomCode/members/:memberId/unmute', requireAuth, unmuteMemberHandler);
+router.post('/:roomCode/members/:memberId/remove', requireAuth, removeMemberHandler);
+router.post('/:roomCode/members/:memberId/ban', requireAuth, banMemberHandler);
 
 // Reports
-router.post('/:roomCode/reports', reportMemberHandler);
+router.post('/:roomCode/reports', requireAuth, reportMemberHandler);
 
 export default router;

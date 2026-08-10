@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import crypto from 'crypto';
+import { config } from '../config';
 import {
   createRoom,
   joinRoomAsMember,
@@ -40,9 +42,33 @@ async function requireRoomAdmin(
 // POST /api/rooms — Create Room
 // ──────────────────────────────────────────────
 export async function createRoomHandler(req: Request, res: Response): Promise<void> {
-  const { name, description, password, adminKey, maxMembers } = req.body;
+  const { name, description, password, adminKey, maxMembers, globalAdminKey } = req.body;
   const userId = req.sessionUser!.userId;
 
+  // 1. Validate Global Admin Key
+  if (!globalAdminKey || typeof globalAdminKey !== 'string') {
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Invalid admin key.' } });
+    return;
+  }
+
+  let isValidAdminKey = false;
+  const suppliedBuffer = Buffer.from(globalAdminKey, 'utf8');
+
+  for (const configuredKey of config.adminKeys) {
+    const configuredBuffer = Buffer.from(configuredKey, 'utf8');
+    if (suppliedBuffer.length === configuredBuffer.length) {
+      if (crypto.timingSafeEqual(suppliedBuffer, configuredBuffer)) {
+        isValidAdminKey = true;
+      }
+    }
+  }
+
+  if (!isValidAdminKey) {
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Invalid admin key.' } });
+    return;
+  }
+
+  // 2. Validate standard room fields
   if (!name || typeof name !== 'string' || name.trim().length < 1 || name.trim().length > 100) {
     res.status(400).json({ success: false, error: { code: 'INVALID_NAME', message: 'Room name must be 1–100 characters.' } });
     return;

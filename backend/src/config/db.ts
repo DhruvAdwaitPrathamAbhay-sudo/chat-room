@@ -3,6 +3,7 @@
  *
  * PostgreSQL connection pool setup using `pg` (node-postgres).
  * Relies on config/index.ts having already validated DATABASE_URL.
+ * Includes automated schema migrations and connection diagnostics.
  */
 
 import { Pool } from 'pg';
@@ -30,14 +31,12 @@ const useSsl = shouldEnableSsl(config.database.url);
 export const pool = new Pool({
   connectionString: config.database.url,
   ...(useSsl ? { ssl: { rejectUnauthorized: false } } : {}),
-  // Connection pool tuning
   idleTimeoutMillis: config.isProd ? 600_000 : 30_000,
   connectionTimeoutMillis: 5_000,
   max: 20,
 });
 
 pool.on('error', (err) => {
-  // Log error message without exposing connection credentials
   console.error('[DB] Unexpected pool error:', err.message);
 });
 
@@ -112,8 +111,104 @@ export function categorizeDbError(err: unknown): { category: string; description
 }
 
 /**
- * Perform a lightweight connectivity check on startup.
- * Rejects with a categorized error if the database is unreachable.
+ * Automatically creates required database tables and indexes if they do not exist.
+ */
+export async function runMigrations(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255) UNIQUE,
+          avatar_url TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS rooms (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          room_code VARCHAR(50) UNIQUE NOT NULL,
+          name VARCHAR(255) NOT NULL,
+          description TEXT,
+          password_hash TEXT NOT NULL,
+          admin_key_hash TEXT NOT NULL,
+          owner_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          max_members INTEGER DEFAULT 50,
+          status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'closed')),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS room_members (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          anonymous_name VARCHAR(100) NOT NULL,
+          anonymous_avatar VARCHAR(100),
+          role VARCHAR(20) DEFAULT 'member' CHECK (role IN ('member', 'admin')),
+          identity_visible BOOLEAN DEFAULT FALSE,
+          status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'muted', 'removed', 'banned')),
+          joined_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(room_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+          sender_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          content TEXT NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          deleted_at TIMESTAMP WITH TIME ZONE
+      );
+
+      CREATE TABLE IF NOT EXISTS reports (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+          reporter_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          reported_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          message_id UUID REFERENCES messages(id) ON DELETE SET NULL,
+          reason TEXT NOT NULL,
+          status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'reviewed', 'resolved', 'dismissed')),
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          resolved_at TIMESTAMP WITH TIME ZONE
+      );
+
+      CREATE TABLE IF NOT EXISTS moderation_actions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+          admin_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          action VARCHAR(50) NOT NULL,
+          metadata JSONB,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS sessions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+          token_hash TEXT UNIQUE NOT NULL,
+          expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_room_code ON rooms(room_code);
+      CREATE INDEX IF NOT EXISTS idx_room_members_room ON room_members(room_id);
+      CREATE INDEX IF NOT EXISTS idx_room_members_user ON room_members(user_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+      CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
+      CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+    `);
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Perform a lightweight connectivity check and run migrations on startup.
  */
 export async function pingDatabase(): Promise<void> {
   const client = await pool.connect();
@@ -122,4 +217,5 @@ export async function pingDatabase(): Promise<void> {
   } finally {
     client.release();
   }
+  await runMigrations();
 }

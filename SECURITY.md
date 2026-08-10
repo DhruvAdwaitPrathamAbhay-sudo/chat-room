@@ -252,9 +252,21 @@ The backend determines what information is returned.
 
 ---
 
-# 9. Admin Key
+# 9. Global Admin Keys
 
-Every room must have a unique Admin Key.
+A Global Admin Key authorizes a person to **create** a new Veil room.
+
+*   They are configured via backend environment variables (e.g. `ADMIN_KEYS`).
+*   They are strictly configuration-level secrets and must NEVER be stored in the database.
+*   They must NEVER be logged, returned in API responses, or exposed to frontend JavaScript.
+*   The backend validates them using constant-time comparison (`crypto.timingSafeEqual`).
+*   A Global Admin Key does NOT grant permanent or automatic admin access to all existing rooms.
+
+After a valid Global Admin Key authorizes room creation, the backend generates a distinct **Room Admin Key** for the creator to use for room administration.
+
+---
+
+# 10. Room Admin Key
 
 The Admin Key establishes administrative access to a specific room.
 
