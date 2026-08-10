@@ -38,6 +38,10 @@ export default function CreateRoomPage() {
       setError("Please set a room password.");
       return;
     }
+    if (!globalAdminKey.trim()) {
+      setError("An admin key is required to create a room.");
+      return;
+    }
 
     setLoading(true);
     try {
