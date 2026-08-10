@@ -33,7 +33,7 @@ export default function JoinMemberPage() {
       return;
     }
     if (!password) {
-      setError("Please enter the room Access Key / password.");
+      setError("Please enter the Room Password.");
       return;
     }
 
@@ -68,7 +68,7 @@ export default function JoinMemberPage() {
               Join a private room
             </h2>
             <p className="text-sm text-[var(--veil-text-muted)] mt-1.5">
-              Enter the room credentials to continue
+              Enter the Room ID and Room Password to continue
             </p>
           </div>
 
@@ -86,8 +86,8 @@ export default function JoinMemberPage() {
             />
 
             <PasswordInput
-              label="Access Key"
-              placeholder="••••••••"
+              label="Room Password"
+              placeholder="Enter room password"
               icon={<LockIcon />}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
