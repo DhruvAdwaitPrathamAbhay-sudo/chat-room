@@ -277,7 +277,7 @@ Only the room creation response or explicit secure key-rotation response may con
 
 # 12. JOIN ROOM AS MEMBER
 
-## POST /api/rooms/:roomCode/join
+## POST /api/rooms/join
 
 Authentication:
 
@@ -289,11 +289,12 @@ Authentication:
 
 ```json id="m7r2c9"
 {
+  "roomName": "Gaming",
   "password": "room-password"
 }
 ```
 
-The room code comes from the URL.
+The backend looks up the active room case-insensitively using `roomName`.
 
 ---
 

@@ -18,7 +18,7 @@ import { joinRoom, ApiError } from "@/lib/api";
 
 export default function JoinMemberPage() {
   const router = useRouter();
-  const [roomCode, setRoomCode] = useState("");
+  const [roomName, setRoomName] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -27,9 +27,9 @@ export default function JoinMemberPage() {
     e.preventDefault();
     setError("");
 
-    const code = roomCode.trim().toUpperCase();
-    if (!code) {
-      setError("Please enter a Room ID.");
+    const name = roomName.trim();
+    if (!name) {
+      setError("Please enter a Room Name.");
       return;
     }
     if (!password) {
@@ -39,7 +39,7 @@ export default function JoinMemberPage() {
 
     setLoading(true);
     try {
-      const res = await joinRoom(code, password);
+      const res = await joinRoom(name, password);
       router.push(`/room/${res.room.roomCode}`);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -68,7 +68,7 @@ export default function JoinMemberPage() {
               Join a private room
             </h2>
             <p className="text-sm text-[var(--veil-text-muted)] mt-1.5">
-              Enter the Room ID and Room Password to continue
+              Enter the Room Name and Room Password to continue
             </p>
           </div>
 
@@ -76,12 +76,12 @@ export default function JoinMemberPage() {
             {error && <Toast message={error} type="error" />}
 
             <VeilInput
-              label="Room ID"
-              placeholder="E.G. VX7K2P"
+              label="Room Name"
+              placeholder="e.g., Gaming"
               icon={<KeyIcon />}
-              value={roomCode}
-              onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-              maxLength={12}
+              value={roomName}
+              onChange={(e) => setRoomName(e.target.value)}
+              maxLength={100}
               required
             />
 

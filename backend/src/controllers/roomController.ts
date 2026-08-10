@@ -6,6 +6,7 @@ import {
   joinRoomAsMember,
   authenticateAdmin,
   findRoomByCode,
+  findRoomByName,
   findMembershipById,
   getMembersForViewer,
   getMessages,
@@ -116,44 +117,64 @@ export async function createRoomHandler(req: Request, res: Response): Promise<vo
 }
 
 // ──────────────────────────────────────────────
-// POST /api/rooms/:roomCode/join — Join as Member
+// POST /api/rooms/join — Join as Member
 // ──────────────────────────────────────────────
 export async function joinRoomHandler(req: Request, res: Response): Promise<void> {
-  const roomCode = Array.isArray(req.params.roomCode) ? req.params.roomCode[0] : req.params.roomCode;
-  const { password } = req.body;
+  const { roomName, password } = req.body;
   const userId = req.sessionUser!.userId;
 
-  if (!password) {
+  if (!roomName || typeof roomName !== 'string' || roomName.trim().length < 1) {
+    res.status(400).json({ success: false, error: { code: 'INVALID_ROOM_NAME', message: 'Room name is required.' } });
+    return;
+  }
+
+  if (!password || typeof password !== 'string' || password.length < 1) {
     res.status(400).json({ success: false, error: { code: 'INVALID_PASSWORD', message: 'Room password is required.' } });
     return;
   }
 
-  const room = await findRoomByCode(roomCode);
+  const room = await findRoomByName(roomName.trim());
   if (!room) {
-    res.status(404).json({ success: false, error: { code: 'ROOM_NOT_FOUND', message: "This room doesn't exist." } });
+    res.status(403).json({ success: false, error: { code: 'INVALID_ROOM_CREDENTIALS', message: 'Invalid room name or password.' } });
     return;
   }
 
-  const { membership } = await joinRoomAsMember(room.id, userId, password);
+  try {
+    const { membership } = await joinRoomAsMember(room.id, userId, password);
 
-  res.json({
-    success: true,
-    data: {
-      room: {
-        id: room.id,
-        roomCode: room.roomCode,
-        name: room.name,
-        description: room.description,
+    res.json({
+      success: true,
+      data: {
+        room: {
+          id: room.id,
+          roomCode: room.roomCode,
+          name: room.name,
+          description: room.description,
+        },
+        membership: {
+          id: membership.id,
+          anonymousName: membership.anonymousName,
+          anonymousAvatar: membership.anonymousAvatar,
+          role: membership.role,
+          identityVisible: membership.identityVisible,
+        },
       },
-      membership: {
-        id: membership.id,
-        anonymousName: membership.anonymousName,
-        anonymousAvatar: membership.anonymousAvatar,
-        role: membership.role,
-        identityVisible: membership.identityVisible,
-      },
-    },
-  });
+    });
+  } catch (err: unknown) {
+    const errorObj = err as { code?: string };
+    if (
+      errorObj.code === 'INVALID_ROOM_CREDENTIALS' ||
+      errorObj.code === 'ROOM_CLOSED' ||
+      errorObj.code === 'ROOM_NOT_FOUND'
+    ) {
+      res.status(403).json({
+        success: false,
+        error: { code: 'INVALID_ROOM_CREDENTIALS', message: 'Invalid room name or password.' },
+      });
+      return;
+    }
+    throw err;
+  }
 }
 
 // ──────────────────────────────────────────────

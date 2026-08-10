@@ -50,6 +50,14 @@ export async function findRoomByCode(roomCode: string): Promise<Room | null> {
   return result.rows.length ? rowToRoom(result.rows[0]) : null;
 }
 
+export async function findRoomByName(name: string): Promise<Room | null> {
+  const result = await query(
+    `SELECT * FROM rooms WHERE LOWER(name) = LOWER($1) AND status = 'active'`,
+    [name.trim()]
+  );
+  return result.rows.length ? rowToRoom(result.rows[0]) : null;
+}
+
 export async function findRoomById(roomId: string): Promise<Room | null> {
   const result = await query('SELECT * FROM rooms WHERE id = $1', [roomId]);
   return result.rows.length ? rowToRoom(result.rows[0]) : null;
@@ -128,6 +136,18 @@ export async function createRoom(input: CreateRoomInput): Promise<CreateRoomResu
     const passwordHash = await argon2.hash(input.password);
     const adminKeyHash = await argon2.hash(plaintextAdminKey);
 
+    // Check if an active room with the same name already exists
+    const existingRoomName = await client.query(
+      `SELECT id FROM rooms WHERE LOWER(name) = LOWER($1) AND status = 'active'`,
+      [input.name.trim()]
+    );
+    if (existingRoomName.rows.length > 0) {
+      throw Object.assign(new Error('A room with this name already exists.'), {
+        statusCode: 400,
+        code: 'ROOM_NAME_EXISTS',
+      });
+    }
+
     // Generate unique room code (retry up to 5 times)
     let roomCode = '';
     for (let i = 0; i < 5; i++) {
@@ -136,12 +156,24 @@ export async function createRoom(input: CreateRoomInput): Promise<CreateRoomResu
       if (existing.rows.length === 0) break;
     }
 
-    const roomResult = await client.query(
-      `INSERT INTO rooms (room_code, name, description, password_hash, admin_key_hash, owner_id, max_members, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
-       RETURNING *`,
-      [roomCode, input.name, input.description || null, passwordHash, adminKeyHash, input.ownerId, input.maxMembers || 50]
-    );
+    let roomResult;
+    try {
+      roomResult = await client.query(
+        `INSERT INTO rooms (room_code, name, description, password_hash, admin_key_hash, owner_id, max_members, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
+         RETURNING *`,
+        [roomCode, input.name.trim(), input.description?.trim() || null, passwordHash, adminKeyHash, input.ownerId, input.maxMembers || 50]
+      );
+    } catch (dbErr: unknown) {
+      const errObj = dbErr as { code?: string };
+      if (errObj.code === '23505') {
+        throw Object.assign(new Error('A room with this name already exists.'), {
+          statusCode: 400,
+          code: 'ROOM_NAME_EXISTS',
+        });
+      }
+      throw dbErr;
+    }
     const room = rowToRoom(roomResult.rows[0]);
 
     // Generate anonymous identity for the admin

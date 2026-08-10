@@ -124,10 +124,10 @@ export interface JoinRoomResponse {
   };
 }
 
-export async function joinRoom(roomCode: string, password: string) {
-  return request<JoinRoomResponse>(`/rooms/${roomCode}/join`, {
+export async function joinRoom(roomName: string, password: string) {
+  return request<JoinRoomResponse>("/rooms/join", {
     method: "POST",
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ roomName, password }),
   });
 }
 

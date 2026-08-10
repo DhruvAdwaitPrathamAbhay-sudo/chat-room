@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS moderation_actions (
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_room_code ON rooms(room_code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rooms_name_active ON rooms (LOWER(name)) WHERE status = 'active';
 CREATE INDEX IF NOT EXISTS idx_room_members_room ON room_members(room_id);
 CREATE INDEX IF NOT EXISTS idx_room_members_user ON room_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_messages_room ON messages(room_id);

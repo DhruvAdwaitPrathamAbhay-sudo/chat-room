@@ -21,7 +21,7 @@ const router = Router();
 
 // Room Creation & Joins auto-provision user session if absent
 router.post('/', ensureAuth, createRoomHandler);
-router.post('/:roomCode/join', ensureAuth, joinRoomHandler);
+router.post('/join', ensureAuth, joinRoomHandler);
 router.post('/:roomCode/admin-access', ensureAuth, adminAccessHandler);
 
 // Protected room routes require existing active session
