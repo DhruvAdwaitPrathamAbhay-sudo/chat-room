@@ -247,83 +247,83 @@ export default function AdminRoomPage({
   }
 
   return (
-    <main className="min-h-dvh bg-[var(--veil-bg)] flex flex-col justify-between max-w-lg mx-auto border-x border-[var(--veil-border)]/40">
+    <main className="h-[100dvh] bg-[var(--veil-bg)] flex flex-col justify-between max-w-lg mx-auto border-x border-[var(--veil-border)]/40 overflow-hidden">
       {/* ── Top Bar ────────────────────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-5 py-4 border-b border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md">
+      <header className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md flex-shrink-0">
         <Link
           href={`/room/${roomCode}`}
-          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--veil-text-muted)] hover:text-white transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--veil-text-muted)] hover:text-white transition-colors py-1 px-1 -ml-1"
         >
           <ArrowLeftIcon className="w-4 h-4" /> Member View
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <VeilBadge>
-            <CrownIcon className="text-[var(--veil-cyan)]" /> Admin Room ({roomCode})
+            <CrownIcon className="text-[var(--veil-cyan)]" /> Admin ({roomCode})
           </VeilBadge>
         </div>
       </header>
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="px-5 pt-3">
+        <div className="px-4 pt-3 flex-shrink-0">
           <Toast message={toastMessage.text} type={toastMessage.type} />
         </div>
       )}
 
       {error && (
-        <div className="px-5 pt-3">
+        <div className="px-4 pt-3 flex-shrink-0">
           <Toast message={error} type="error" />
         </div>
       )}
 
       {/* ── Active Members List ────────────────────────────────────────── */}
-      <div className="flex-1 p-5 space-y-4 overflow-y-auto page-in">
-        <div className="flex items-center justify-between">
-          <h1 className="text-sm font-bold uppercase tracking-wider text-[var(--veil-text-muted)]">
-            Active Room Participants ({members.length})
+      <div className="flex-1 p-4 sm:p-5 space-y-3.5 overflow-y-auto page-in min-h-0">
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-xs font-bold uppercase tracking-wider text-[var(--veil-text-muted)]">
+            Participants ({members.length})
           </h1>
-          <span className="text-xs text-[var(--veil-cyan)] font-medium">
-            Tap participant to moderate
+          <span className="text-[11px] sm:text-xs text-[var(--veil-cyan)] font-medium truncate">
+            Tap to moderate
           </span>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {members.map((member) => (
             <div
               key={member.id}
               onClick={() => setSelectedMember(member)}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-center justify-between ${
+              className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 min-w-0 touch-manipulation ${
                 selectedMember?.id === member.id
                   ? "bg-[var(--veil-surface-2)] border-[var(--veil-cyan)]/60 shadow-lg"
                   : "bg-[var(--veil-surface)] border-[var(--veil-border)] hover:border-[var(--veil-border)]/80"
               }`}
             >
-              <div className="flex items-center gap-3.5">
-                <div className="relative">
-                  <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-[var(--veil-cyan)]/20 to-[var(--veil-surface-2)] border border-[var(--veil-cyan)]/40 flex items-center justify-center font-bold text-white text-sm">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="relative flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[var(--veil-cyan)]/20 to-[var(--veil-surface-2)] border border-[var(--veil-cyan)]/40 flex items-center justify-center font-bold text-white text-xs sm:text-sm">
                     {member.displayName.slice(0, 2)}
                   </div>
-                  <span className="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-[var(--veil-cyan)] border-2 border-[var(--veil-surface)]" />
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-[var(--veil-cyan)] border-2 border-[var(--veil-surface)]" />
                 </div>
 
-                <div>
-                  <p className="font-bold text-white text-base">
+                <div className="min-w-0">
+                  <p className="font-bold text-white text-xs sm:text-sm truncate">
                     {member.displayName}{" "}
                     {member.realName && member.realName !== member.displayName && (
-                      <span className="text-xs text-[var(--veil-text-muted)]">
+                      <span className="text-xs font-normal text-[var(--veil-text-muted)] truncate">
                         ({member.realName})
                       </span>
                     )}
                   </p>
-                  <p className="text-xs text-[var(--veil-text-muted)]">
+                  <p className="text-[11px] text-[var(--veil-text-muted)] truncate">
                     Role: {member.role} • Status: {member.status}
                   </p>
                 </div>
               </div>
 
               {member.identityVisible && (
-                <span className="text-xs font-semibold px-3 py-1 rounded-full bg-[var(--veil-cyan)]/10 text-[var(--veil-cyan)] border border-[var(--veil-cyan)]/30 flex items-center gap-1">
-                  ✓ Identity revealed
+                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[var(--veil-cyan)]/10 text-[var(--veil-cyan)] border border-[var(--veil-cyan)]/30 flex items-center gap-1 flex-shrink-0">
+                  ✓ Revealed
                 </span>
               )}
             </div>
@@ -333,27 +333,30 @@ export default function AdminRoomPage({
 
       {/* ── Admin Action Modal / Bottom Sheet ──────────────────────────── */}
       {selectedMember && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-md bg-[var(--veil-surface)] border-t sm:border border-[var(--veil-border)] rounded-t-3xl sm:rounded-3xl p-6 space-y-6 animate-in slide-in-from-bottom duration-200">
-            <div className="w-12 h-1.5 bg-[var(--veil-border)] rounded-full mx-auto sm:hidden" />
+        <div
+          className="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedMember(null); }}
+        >
+          <div className="w-[calc(100%-24px)] sm:w-full max-w-md mx-auto bg-[var(--veil-surface)] border border-[var(--veil-border)] rounded-3xl p-5 sm:p-6 space-y-5 shadow-2xl mb-3 sm:mb-0 max-h-[90vh] overflow-y-auto">
+            <div className="w-10 h-1 bg-[var(--veil-border)] rounded-full mx-auto sm:hidden -mt-1" />
 
-            <div className="text-center flex flex-col items-center space-y-3">
+            <div className="text-center flex flex-col items-center space-y-2">
               <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[var(--veil-cyan)]/30 to-purple-900/30 border-2 border-[var(--veil-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.25)] flex items-center justify-center text-xl font-extrabold text-white">
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gradient-to-br from-[var(--veil-cyan)]/30 to-purple-900/30 border-2 border-[var(--veil-cyan)] shadow-[0_0_20px_rgba(0,229,255,0.25)] flex items-center justify-center text-lg sm:text-xl font-extrabold text-white">
                   {selectedMember.displayName.slice(0, 2)}
                 </div>
               </div>
 
-              <div>
-                <h2 className="text-xl font-bold text-white">
+              <div className="min-w-0 w-full px-2">
+                <h2 className="text-lg sm:text-xl font-bold text-white truncate">
                   {selectedMember.displayName}
                 </h2>
                 {selectedMember.realName && (
-                  <p className="text-sm font-semibold text-[var(--veil-cyan)] mt-0.5">
+                  <p className="text-xs sm:text-sm font-semibold text-[var(--veil-cyan)] mt-0.5 break-words">
                     Real Name: {selectedMember.realName}
                   </p>
                 )}
-                <p className="text-xs font-mono text-[var(--veil-text-muted)] mt-1">
+                <p className="text-[11px] font-mono text-[var(--veil-text-muted)] mt-1 truncate">
                   ID: {selectedMember.id}
                 </p>
               </div>
@@ -376,14 +379,14 @@ export default function AdminRoomPage({
                 )}
               </VeilButton>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <VeilButton
                   variant="secondary"
                   loading={actionLoading}
                   onClick={() => handleToggleMute(selectedMember.id)}
                 >
                   <MicOffIcon />{" "}
-                  {selectedMember.status === "muted" ? "Unmute" : "Mute User"}
+                  {selectedMember.status === "muted" ? "Unmute" : "Mute"}
                 </VeilButton>
 
                 <VeilButton
@@ -400,7 +403,7 @@ export default function AdminRoomPage({
               <button
                 type="button"
                 onClick={() => setSelectedMember(null)}
-                className="text-sm font-medium text-[var(--veil-text-muted)] hover:text-white transition-colors cursor-pointer"
+                className="text-xs sm:text-sm font-medium text-[var(--veil-text-muted)] hover:text-white transition-colors cursor-pointer py-2 px-4 min-h-[44px]"
               >
                 Cancel
               </button>
@@ -410,7 +413,7 @@ export default function AdminRoomPage({
       )}
 
       {/* ── Room Close Action Footer ────────────────────────────────────── */}
-      <footer className="p-4 border-t border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md">
+      <footer className="p-3.5 sm:p-4 border-t border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md flex-shrink-0">
         <VeilButton
           variant="danger"
           loading={actionLoading}

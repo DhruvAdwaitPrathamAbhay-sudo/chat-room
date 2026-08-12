@@ -61,25 +61,25 @@ export default function JoinAdminPage() {
   };
 
   return (
-    <main className="min-h-dvh bg-[var(--veil-bg)] flex flex-col p-6 page-in items-center justify-center">
+    <main className="min-h-dvh bg-[var(--veil-bg)] flex flex-col px-4 py-6 sm:p-6 page-in items-center justify-center overflow-x-hidden">
       <div className="w-full max-w-md my-auto">
         <div className="text-center mb-6 flex flex-col items-center">
-          <h1 className="text-3xl font-extrabold text-[var(--veil-cyan)] tracking-tight mb-3">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--veil-cyan)] tracking-tight mb-2.5">
             Veil
           </h1>
           <VeilBadge>
             <CrownIcon className="text-[var(--veil-cyan)]" /> Admin Access
           </VeilBadge>
-          <h2 className="text-2xl font-bold text-white mt-4">
+          <h2 className="text-xl sm:text-2xl font-bold text-white mt-3.5">
             Enter as Admin
           </h2>
-          <p className="text-sm text-[var(--veil-text-muted)] mt-1.5">
+          <p className="text-xs sm:text-sm text-[var(--veil-text-muted)] mt-1.5 leading-relaxed">
             Provide your credentials to manage this room.
           </p>
         </div>
 
-        <VeilCard className="p-7">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <VeilCard className="p-5 sm:p-7">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             {error && <Toast message={error} type="error" />}
 
             <VeilInput
@@ -130,16 +130,16 @@ export default function JoinAdminPage() {
           </form>
         </VeilCard>
 
-        <div className="mt-6 flex flex-col items-center gap-3 text-center">
+        <div className="mt-6 flex flex-col items-center gap-2 text-center">
           <Link
             href="/join"
-            className="text-sm font-medium text-[var(--veil-text-muted)] hover:text-white transition-colors inline-flex items-center gap-1.5"
+            className="text-xs sm:text-sm font-medium text-[var(--veil-text-muted)] hover:text-white transition-colors inline-flex items-center gap-1.5 py-1.5 px-2"
           >
             <ArrowLeftIcon className="w-4 h-4" /> Join as member instead
           </Link>
           <Link
             href="/"
-            className="text-xs font-medium text-[var(--veil-text-dim)] hover:text-[var(--veil-text-muted)] transition-colors"
+            className="text-xs font-medium text-[var(--veil-text-dim)] hover:text-[var(--veil-text-muted)] transition-colors py-1 px-2"
           >
             Cancel
           </Link>

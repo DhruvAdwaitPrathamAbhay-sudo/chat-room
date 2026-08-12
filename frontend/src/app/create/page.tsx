@@ -65,7 +65,7 @@ export default function CreateRoomPage() {
   };
 
   return (
-    <main className="min-h-dvh bg-[var(--veil-bg)] flex flex-col p-6 page-in items-center justify-center">
+    <main className="min-h-dvh bg-[var(--veil-bg)] flex flex-col px-4 py-6 sm:p-6 page-in items-center justify-center overflow-x-hidden">
       <div className="w-full max-w-md my-auto">
         <div className="text-center mb-6 flex flex-col items-center">
           <span className="text-xs font-bold tracking-widest text-[var(--veil-cyan)] uppercase mb-2">
@@ -74,16 +74,16 @@ export default function CreateRoomPage() {
           <VeilBadge>
             <SparkleIcon className="text-[var(--veil-cyan)]" /> New Space
           </VeilBadge>
-          <h1 className="text-3xl font-extrabold text-white mt-3">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-white mt-3">
             Create a Room
           </h1>
-          <p className="text-sm text-[var(--veil-text-muted)] mt-1.5 max-w-xs">
+          <p className="text-xs sm:text-sm text-[var(--veil-text-muted)] mt-1.5 max-w-xs">
             Set up your private anonymous space in seconds.
           </p>
         </div>
 
-        <VeilCard className="p-7">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <VeilCard className="p-5 sm:p-7">
+          <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
             {error && <Toast message={error} type="error" />}
 
             <VeilInput
@@ -103,7 +103,7 @@ export default function CreateRoomPage() {
                 <button
                   type="button"
                   onClick={() => setPrivacy("private")}
-                  className={`py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                  className={`py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer min-h-[40px] touch-manipulation ${
                     privacy === "private"
                       ? "bg-[var(--veil-surface)] text-[var(--veil-cyan)] border border-[var(--veil-cyan)]/40 shadow-sm"
                       : "text-[var(--veil-text-muted)] hover:text-white"
@@ -114,7 +114,7 @@ export default function CreateRoomPage() {
                 <button
                   type="button"
                   onClick={() => setPrivacy("public")}
-                  className={`py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer ${
+                  className={`py-2.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer min-h-[40px] touch-manipulation ${
                     privacy === "public"
                       ? "bg-[var(--veil-surface)] text-[var(--veil-cyan)] border border-[var(--veil-cyan)]/40 shadow-sm"
                       : "text-[var(--veil-text-muted)] hover:text-white"
@@ -159,7 +159,7 @@ export default function CreateRoomPage() {
         <div className="mt-6 text-center">
           <Link
             href="/"
-            className="text-sm font-medium text-[var(--veil-text-muted)] hover:text-white transition-colors"
+            className="text-xs sm:text-sm font-medium text-[var(--veil-text-muted)] hover:text-white transition-colors py-2 px-3 inline-block"
           >
             Cancel / Back to Home
           </Link>

@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, InputHTMLAttributes, useState } from "react";
+import Link from "next/link";
 
 // ── VeilInput ─────────────────────────────────────────────────────────────────
 
@@ -14,13 +15,13 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 export const VeilInput = forwardRef<HTMLInputElement, InputProps>(
   ({ label, error, icon, rightElement, className = "", ...props }, ref) => {
     return (
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 min-w-0">
         {label && (
           <label className="text-sm font-semibold text-white/90">
             {label}
           </label>
         )}
-        <div className="relative flex items-center">
+        <div className="relative flex items-center w-full">
           {icon && (
             <div className="absolute left-4 text-[var(--veil-text-muted)] pointer-events-none flex items-center">
               {icon}
@@ -34,11 +35,11 @@ export const VeilInput = forwardRef<HTMLInputElement, InputProps>(
             {...props}
           />
           {rightElement && (
-            <div className="absolute right-4 flex items-center">{rightElement}</div>
+            <div className="absolute right-3 flex items-center">{rightElement}</div>
           )}
         </div>
         {error && (
-          <p className="text-xs text-[var(--veil-error)] mt-0.5">{error}</p>
+          <p className="text-xs text-[var(--veil-error)] mt-0.5 break-words">{error}</p>
         )}
       </div>
     );
@@ -61,7 +62,7 @@ export function PasswordInput(props: PasswordInputProps) {
           type="button"
           onClick={() => setVisible((v) => !v)}
           aria-label={visible ? "Hide password" : "Show password"}
-          className="text-[var(--veil-text-muted)] hover:text-white transition-colors"
+          className="p-2 text-[var(--veil-text-muted)] hover:text-white transition-colors flex items-center justify-center min-w-[40px] min-h-[40px]"
         >
           {visible ? <EyeOffIcon /> : <EyeIcon />}
         </button>
@@ -93,7 +94,7 @@ export function VeilButton({
       ? "veil-btn-secondary"
       : variant === "danger"
       ? "veil-btn-secondary !text-[var(--veil-error)] !border-[var(--veil-error)]/30 hover:!bg-[var(--veil-error)]/10"
-      : "bg-transparent text-[var(--veil-cyan)] hover:opacity-80 flex items-center justify-center gap-2 transition-opacity cursor-pointer w-full py-3 font-medium";
+      : "bg-transparent text-[var(--veil-cyan)] hover:opacity-80 flex items-center justify-center gap-2 transition-opacity cursor-pointer w-full py-3 font-medium min-h-[48px]";
 
   return (
     <button
@@ -155,7 +156,7 @@ export function VeilLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
 
 export function VeilBadge({ children }: { children: React.ReactNode }) {
   return (
-    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--veil-surface-2)] border border-[var(--veil-border)] text-sm text-[var(--veil-text-muted)]">
+    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--veil-surface-2)] border border-[var(--veil-border)] text-xs sm:text-sm text-[var(--veil-text-muted)] max-w-full truncate">
       {children}
     </div>
   );
@@ -174,7 +175,7 @@ export function Toast({
   return (
     <div
       role="alert"
-      className={`rounded-xl px-4 py-3 text-sm font-medium ${
+      className={`rounded-xl px-4 py-3 text-sm font-medium break-words max-w-full ${
         type === "error"
           ? "bg-[var(--veil-error)]/10 border border-[var(--veil-error)]/30 text-[var(--veil-error)]"
           : "bg-[var(--veil-success)]/10 border border-[var(--veil-success)]/30 text-[var(--veil-success)]"
@@ -187,13 +188,11 @@ export function Toast({
 
 // ── BackButton ────────────────────────────────────────────────────────────────
 
-import Link from "next/link";
-
 export function BackButton({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="inline-flex items-center gap-2 text-[var(--veil-text-muted)] hover:text-white transition-colors text-sm font-medium"
+      className="inline-flex items-center gap-2 text-[var(--veil-text-muted)] hover:text-white transition-colors text-sm font-medium py-1 px-1 -ml-1 touch-manipulation"
     >
       <ArrowLeftIcon />
       Back
@@ -344,7 +343,7 @@ export function PlusCircleIcon({ className = "" }: { className?: string }) {
 
 export function FingerprintIcon({ className = "" }: { className?: string }) {
   return (
-    <svg className={`w-12 h-12 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
+    <svg className={`w-10 h-10 sm:w-12 sm:h-12 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-2.266.99-4.659.99-7.132A8 8 0 008 4.07M3 15.364c.64-1.319 1-2.8 1-4.364 0-1.457.39-2.823 1.07-4" />
     </svg>
   );
