@@ -5,8 +5,16 @@
  * Uses HTTP-only cookie credentials for secure session management.
  */
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+function getApiBaseUrl(): string {
+  let raw = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+  raw = raw.trim().replace(/\/+$/, "");
+  if (!raw.endsWith("/api")) {
+    raw = `${raw}/api`;
+  }
+  return raw;
+}
+
+const API_BASE = getApiBaseUrl();
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -31,18 +39,28 @@ async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
+  const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE}${cleanEndpoint}`;
 
   const headers = new Headers(options.headers || {});
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    credentials: "include", // Transmit and receive HTTP-only veil_session cookie
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      credentials: "include", // Transmit and receive HTTP-only veil_session cookie
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new ApiError(
+      `Unable to connect to backend server (${msg}). Please verify network connection or NEXT_PUBLIC_API_URL configuration.`,
+      "NETWORK_ERROR"
+    );
+  }
 
   let json: ApiResponse<T>;
   try {

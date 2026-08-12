@@ -66,7 +66,7 @@ export async function ensureAuth(
     res.cookie(SESSION_COOKIE, token, {
       httpOnly: true,
       secure: IS_PROD,
-      sameSite: IS_PROD ? 'strict' : 'lax',
+      sameSite: IS_PROD ? 'none' : 'lax',
       maxAge: SESSION_MAX_AGE,
       path: '/',
     });

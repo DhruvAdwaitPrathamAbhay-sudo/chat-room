@@ -64,7 +64,12 @@ const corsOptions: cors.CorsOptions = {
     // Allow server-to-server / curl requests (no Origin header)
     if (!origin) return callback(null, true);
 
-    if (config.cors.allowedOrigins.includes(origin)) {
+    const cleanOrigin = origin.replace(/\/+$/, '');
+    const isAllowed = config.cors.allowedOrigins.some(
+      (allowed) => allowed.replace(/\/+$/, '') === cleanOrigin
+    );
+
+    if (isAllowed) {
       return callback(null, true);
     }
 

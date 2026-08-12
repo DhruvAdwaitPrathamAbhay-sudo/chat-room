@@ -27,7 +27,7 @@ export async function join(req: Request, res: Response): Promise<void> {
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: IS_PROD,
-    sameSite: IS_PROD ? 'strict' : 'lax',
+    sameSite: IS_PROD ? 'none' : 'lax',
     maxAge: SESSION_MAX_AGE,
     path: '/',
   });
@@ -62,6 +62,11 @@ export async function logout(req: Request, res: Response): Promise<void> {
   if (token) {
     await destroySession(token);
   }
-  res.clearCookie(SESSION_COOKIE, { path: '/' });
+  res.clearCookie(SESSION_COOKIE, {
+    path: '/',
+    httpOnly: true,
+    secure: IS_PROD,
+    sameSite: IS_PROD ? 'none' : 'lax',
+  });
   res.json({ success: true });
 }
