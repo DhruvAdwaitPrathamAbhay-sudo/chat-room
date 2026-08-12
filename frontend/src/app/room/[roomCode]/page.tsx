@@ -260,9 +260,9 @@ export default function RoomChatPage({
   }
 
   return (
-    <div className="h-[100dvh] bg-[var(--veil-bg)] flex flex-col justify-between max-w-lg mx-auto border-x border-[var(--veil-border)]/40 shadow-2xl overflow-hidden">
+    <div className="h-[100dvh] bg-[var(--veil-bg)] flex flex-col justify-between w-full md:max-w-2xl lg:max-w-3xl md:mx-auto md:border-x md:border-[var(--veil-border)]/40 md:shadow-2xl overflow-hidden">
       {/* ── Header ──────────────────────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md z-20 flex-shrink-0">
+      <header className="flex items-center justify-between px-3.5 sm:px-5 py-3 border-b border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md z-20 flex-shrink-0 w-full">
         <Link
           href="/"
           className="text-[var(--veil-text-muted)] hover:text-white transition-colors p-1.5 -ml-1.5"
@@ -271,8 +271,8 @@ export default function RoomChatPage({
           <EyeSlashIcon className="w-6 h-6 text-[var(--veil-cyan)]" />
         </Link>
 
-        <div className="text-center min-w-0 px-2">
-          <h1 className="font-bold text-base sm:text-lg text-white leading-tight truncate max-w-[150px] xs:max-w-[210px] sm:max-w-[300px] mx-auto">
+        <div className="text-center min-w-0 px-2 flex-1">
+          <h1 className="font-bold text-base sm:text-lg text-white leading-tight truncate max-w-[180px] xs:max-w-[240px] sm:max-w-[340px] mx-auto">
             {roomName}
           </h1>
           <div className="flex items-center justify-center gap-1.5 mt-0.5">
@@ -297,7 +297,7 @@ export default function RoomChatPage({
       </header>
 
       {error && (
-        <div className="px-4 pt-3 flex-shrink-0">
+        <div className="px-3.5 sm:px-5 pt-3 flex-shrink-0 w-full">
           <Toast message={error} type="error" />
         </div>
       )}
@@ -305,14 +305,14 @@ export default function RoomChatPage({
       {/* ── Main View Area ──────────────────────────────────────────────── */}
       {activeTab === "people" ? (
         /* ── People / Members Panel ──────────────────────────────────── */
-        <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto page-in">
+        <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto page-in w-full">
           <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--veil-text-muted)] mb-3">
             Active Room Participants ({members.length})
           </h2>
           {members.map((m) => (
             <div
               key={m.id}
-              className="flex items-center justify-between p-3 sm:p-3.5 rounded-xl bg-[var(--veil-surface)] border border-[var(--veil-border)] gap-2 min-w-0"
+              className="flex items-center justify-between p-3.5 sm:p-4 rounded-xl bg-[var(--veil-surface)] border border-[var(--veil-border)] gap-2 min-w-0 w-full"
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-9 h-9 rounded-full bg-[var(--veil-surface-2)] flex items-center justify-center border border-[var(--veil-border)] text-xs sm:text-sm font-semibold text-[var(--veil-cyan)] flex-shrink-0">
@@ -328,7 +328,7 @@ export default function RoomChatPage({
                 </div>
               </div>
               {m.role === "admin" && (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--veil-cyan)]/10 text-[var(--veil-cyan)] border border-[var(--veil-cyan)]/30 flex items-center gap-1 flex-shrink-0">
+                <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-[var(--veil-cyan)]/10 text-[var(--veil-cyan)] border border-[var(--veil-cyan)]/30 flex items-center gap-1 flex-shrink-0">
                   <CrownIcon className="w-3 h-3" /> Admin
                 </span>
               )}
@@ -345,7 +345,7 @@ export default function RoomChatPage({
         </div>
       ) : (
         /* ── Chat Messages Feed ────────────────────────────────────────── */
-        <div className="flex-1 p-3.5 sm:p-5 overflow-y-auto space-y-3.5 min-h-0">
+        <div className="flex-1 p-3.5 sm:p-5 overflow-y-auto space-y-3.5 min-h-0 w-full">
           {messages.length === 0 ? (
             <div className="text-center py-12 text-[var(--veil-text-muted)] text-xs sm:text-sm">
               No messages yet. Send a message to start the conversation.
@@ -361,7 +361,7 @@ export default function RoomChatPage({
               return (
                 <div
                   key={msg.id}
-                  className={`flex items-end gap-2 msg-in ${
+                  className={`flex items-end gap-2 msg-in w-full ${
                     isSelf ? "justify-end" : "justify-start"
                   }`}
                 >
@@ -383,7 +383,7 @@ export default function RoomChatPage({
                         {msg.displayName}
                       </p>
                     )}
-                    <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words">
+                    <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">
                       {msg.content.split(/(@\w+)/g).map((part, i) =>
                         part.startsWith("@") ? (
                           <span
@@ -432,9 +432,9 @@ export default function RoomChatPage({
       )}
 
       {/* ── Composer Bottom Bar ─────────────────────────────────────────── */}
-      <div className="p-3 sm:p-4 bg-[var(--veil-surface)] border-t border-[var(--veil-border)] backdrop-blur-md flex-shrink-0">
-        <form onSubmit={handleSend} className="flex items-center gap-2 sm:gap-3">
-          <div className="relative flex-1 flex items-center min-w-0">
+      <div className="p-3 sm:p-4 bg-[var(--veil-surface)] border-t border-[var(--veil-border)] backdrop-blur-md flex-shrink-0 w-full">
+        <form onSubmit={handleSend} className="flex items-center gap-2 sm:gap-3 w-full">
+          <div className="relative flex-1 flex items-center min-w-0 w-full">
             <button
               type="button"
               className="absolute left-3 text-[var(--veil-text-muted)] hover:text-white transition-colors p-1"
@@ -452,7 +452,7 @@ export default function RoomChatPage({
             <button
               type="submit"
               disabled={!inputContent.trim()}
-              className="absolute right-1.5 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--veil-cyan)] text-black flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-95 transition-all touch-manipulation"
+              className="absolute right-1.5 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--veil-cyan)] text-black flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 active:scale-95 transition-all touch-manipulation flex-shrink-0"
               title="Send message"
             >
               <SendIcon className="w-4 h-4" />
@@ -462,7 +462,7 @@ export default function RoomChatPage({
       </div>
 
       {/* ── Bottom Nav ───────────────────────────────────────────────────── */}
-      <nav className="bottom-nav flex items-center justify-around py-2.5 px-3 border-t border-[var(--veil-border)] bg-[var(--veil-surface)] flex-shrink-0">
+      <nav className="bottom-nav flex items-center justify-around py-2.5 px-3 border-t border-[var(--veil-border)] bg-[var(--veil-surface)] flex-shrink-0 w-full">
         <button
           onClick={() => setActiveTab("chat")}
           className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-xl transition-colors min-h-[44px] justify-center ${

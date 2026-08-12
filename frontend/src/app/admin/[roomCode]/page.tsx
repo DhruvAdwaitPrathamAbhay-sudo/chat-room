@@ -247,9 +247,9 @@ export default function AdminRoomPage({
   }
 
   return (
-    <main className="h-[100dvh] bg-[var(--veil-bg)] flex flex-col justify-between max-w-lg mx-auto border-x border-[var(--veil-border)]/40 overflow-hidden">
+    <main className="h-[100dvh] bg-[var(--veil-bg)] flex flex-col justify-between w-full md:max-w-2xl lg:max-w-3xl md:mx-auto md:border-x md:border-[var(--veil-border)]/40 overflow-hidden">
       {/* ── Top Bar ────────────────────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md flex-shrink-0">
+      <header className="flex items-center justify-between px-3.5 sm:px-5 py-3.5 border-b border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md flex-shrink-0 w-full">
         <Link
           href={`/room/${roomCode}`}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--veil-text-muted)] hover:text-white transition-colors py-1 px-1 -ml-1"
@@ -265,19 +265,19 @@ export default function AdminRoomPage({
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="px-4 pt-3 flex-shrink-0">
+        <div className="px-3.5 sm:px-5 pt-3 flex-shrink-0 w-full">
           <Toast message={toastMessage.text} type={toastMessage.type} />
         </div>
       )}
 
       {error && (
-        <div className="px-4 pt-3 flex-shrink-0">
+        <div className="px-3.5 sm:px-5 pt-3 flex-shrink-0 w-full">
           <Toast message={error} type="error" />
         </div>
       )}
 
       {/* ── Active Members List ────────────────────────────────────────── */}
-      <div className="flex-1 p-4 sm:p-5 space-y-3.5 overflow-y-auto page-in min-h-0">
+      <div className="flex-1 p-3.5 sm:p-5 space-y-3.5 overflow-y-auto page-in min-h-0 w-full">
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-xs font-bold uppercase tracking-wider text-[var(--veil-text-muted)]">
             Participants ({members.length})
@@ -292,7 +292,7 @@ export default function AdminRoomPage({
             <div
               key={member.id}
               onClick={() => setSelectedMember(member)}
-              className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 min-w-0 touch-manipulation ${
+              className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between gap-2 min-w-0 w-full touch-manipulation ${
                 selectedMember?.id === member.id
                   ? "bg-[var(--veil-surface-2)] border-[var(--veil-cyan)]/60 shadow-lg"
                   : "bg-[var(--veil-surface)] border-[var(--veil-border)] hover:border-[var(--veil-border)]/80"
@@ -413,7 +413,7 @@ export default function AdminRoomPage({
       )}
 
       {/* ── Room Close Action Footer ────────────────────────────────────── */}
-      <footer className="p-3.5 sm:p-4 border-t border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md flex-shrink-0">
+      <footer className="p-3.5 sm:p-4 border-t border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md flex-shrink-0 w-full">
         <VeilButton
           variant="danger"
           loading={actionLoading}
