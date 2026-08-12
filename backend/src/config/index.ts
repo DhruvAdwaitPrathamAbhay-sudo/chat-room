@@ -108,7 +108,7 @@ function resolveAllowedOrigins(): string[] {
   const raw = env.ALLOWED_ORIGINS || env.CLIENT_URL || '';
   return raw
     .split(',')
-    .map((o) => o.trim().replace(/\/+$/, ''))
+    .map((o) => o.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, ''))
     .filter(Boolean);
 }
 

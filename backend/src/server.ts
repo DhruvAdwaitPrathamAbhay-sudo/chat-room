@@ -52,37 +52,40 @@ const io = new Server(server, {
 // Make io accessible in controllers via req.app.get('io')
 app.set('io', io);
 
-// ── Security headers ──────────────────────────────────────────────────────────
-
-app.use(helmetMiddleware);
-
 // ── CORS ──────────────────────────────────────────────────────────────────────
 // Never use wildcard (*) when credentials: true — browsers reject it.
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    // Allow server-to-server / curl requests (no Origin header)
+    // Allow server-to-server / curl / same-origin requests (no Origin header)
     if (!origin) return callback(null, true);
 
-    const cleanOrigin = origin.replace(/\/+$/, '');
+    const cleanOrigin = origin.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '');
     const isAllowed = config.cors.allowedOrigins.some(
-      (allowed) => allowed.replace(/\/+$/, '') === cleanOrigin
+      (allowed) => allowed.trim().replace(/^['"]|['"]$/g, '').replace(/\/+$/, '') === cleanOrigin
     );
 
     if (isAllowed) {
       return callback(null, true);
     }
 
-    // Log the rejection without leaking internal details
+    // Pass false instead of throwing Error to prevent Express 500 error on preflight OPTIONS
     console.warn(`[CORS] Rejected origin: ${origin}`);
-    return callback(new Error('Not allowed by CORS'));
+    return callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 204,
 };
 
+// Enable CORS and explicitly handle preflight OPTIONS requests before other middleware
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
+
+// ── Security headers ──────────────────────────────────────────────────────────
+
+app.use(helmetMiddleware);
 
 // ── Body parsing ──────────────────────────────────────────────────────────────
 
