@@ -1,7 +1,8 @@
 # Dependencies
 node_modules/
 .pnpm-store/
-package-lock.json
+# Only ignore the root-level lockfile (it has no packages — subprojects have their own)
+/package-lock.json
 
 # Environment variables — NEVER commit secrets!
 .env
