@@ -79,9 +79,8 @@ const corsOptions: cors.CorsOptions = {
   optionsSuccessStatus: 204,
 };
 
-// Enable CORS and explicitly handle preflight OPTIONS requests before other middleware
+// Enable CORS middleware for all routes before security headers & API routes
 app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
 
 // ── Security headers ──────────────────────────────────────────────────────────
 
