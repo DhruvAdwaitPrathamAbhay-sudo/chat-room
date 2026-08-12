@@ -150,9 +150,9 @@ async function start(): Promise<void> {
     process.exit(1);
   }
 
-  server.listen(config.port, () => {
+  server.listen(config.port, '0.0.0.0', () => {
     console.log(
-      `✅ Veil backend running on http://localhost:${config.port} [${config.nodeEnv}]`
+      `✅ Veil backend running on http://0.0.0.0:${config.port} [${config.nodeEnv}]`
     );
     console.log(
       `   Allowed origins: ${config.cors.allowedOrigins.join(', ')}`

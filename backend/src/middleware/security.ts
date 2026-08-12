@@ -122,3 +122,14 @@ export const generalLimiter = makeLimiter(
   5,
   'Too many requests. Please slow down.'
 );
+
+/**
+ * POST /api/admin/rooms/clear
+ * Extremely strict — this is a highly destructive, irreversible operation.
+ * 3 attempts per 60 minutes per IP.
+ */
+export const clearRoomsLimiter = makeLimiter(
+  3,
+  60,
+  'Too many clear-all attempts. Please wait 60 minutes before trying again.'
+);

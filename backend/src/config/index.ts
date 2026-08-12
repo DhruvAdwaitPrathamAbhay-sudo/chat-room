@@ -59,6 +59,16 @@ const envSchema = z.object({
   ADMIN_KEYS: z
     .string()
     .min(1, 'ADMIN_KEYS is required'),
+
+  // Room limits & inactivity
+  MAX_ROOM_MEMBERS: z
+    .string()
+    .regex(/^\d+$/, 'MAX_ROOM_MEMBERS must be numeric')
+    .default('50'),
+  ROOM_INACTIVITY_TIMEOUT: z
+    .string()
+    .regex(/^\d+$/, 'ROOM_INACTIVITY_TIMEOUT must be numeric')
+    .default('30000'),
 });
 
 // ── Validate ──────────────────────────────────────────────────────────────────
@@ -136,4 +146,6 @@ export const config = {
   },
 
   adminKeys: resolveAdminKeys(),
+  maxRoomMembers: parseInt(env.MAX_ROOM_MEMBERS, 10),
+  roomInactivityTimeoutMs: parseInt(env.ROOM_INACTIVITY_TIMEOUT, 10),
 } as const;

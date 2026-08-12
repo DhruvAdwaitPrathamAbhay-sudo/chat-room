@@ -1,6 +1,5 @@
 import { Request, Response } from 'express';
-import crypto from 'crypto';
-import { config } from '../config';
+import { verifyGlobalAdminKey } from '../utils/adminAuth';
 import {
   createRoom,
   joinRoomAsMember,
@@ -52,19 +51,7 @@ export async function createRoomHandler(req: Request, res: Response): Promise<vo
     return;
   }
 
-  let isValidAdminKey = false;
-  const suppliedBuffer = Buffer.from(globalAdminKey, 'utf8');
-
-  for (const configuredKey of config.adminKeys) {
-    const configuredBuffer = Buffer.from(configuredKey, 'utf8');
-    if (suppliedBuffer.length === configuredBuffer.length) {
-      if (crypto.timingSafeEqual(suppliedBuffer, configuredBuffer)) {
-        isValidAdminKey = true;
-      }
-    }
-  }
-
-  if (!isValidAdminKey) {
+  if (!verifyGlobalAdminKey(globalAdminKey)) {
     res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Invalid admin key.' } });
     return;
   }
@@ -120,8 +107,13 @@ export async function createRoomHandler(req: Request, res: Response): Promise<vo
 // POST /api/rooms/join — Join as Member
 // ──────────────────────────────────────────────
 export async function joinRoomHandler(req: Request, res: Response): Promise<void> {
-  const { roomName, password } = req.body;
+  const { realName, roomName, password } = req.body;
   const userId = req.sessionUser!.userId;
+
+  if (!realName || typeof realName !== 'string' || realName.trim().length < 1 || realName.trim().length > 100) {
+    res.status(400).json({ success: false, error: { code: 'INVALID_REAL_NAME', message: 'Real Name is required (1–100 characters).' } });
+    return;
+  }
 
   if (!roomName || typeof roomName !== 'string' || roomName.trim().length < 1) {
     res.status(400).json({ success: false, error: { code: 'INVALID_ROOM_NAME', message: 'Room name is required.' } });
@@ -140,7 +132,8 @@ export async function joinRoomHandler(req: Request, res: Response): Promise<void
   }
 
   try {
-    const { membership } = await joinRoomAsMember(room.id, userId, password);
+    const { membership } = await joinRoomAsMember(room.id, userId, password, realName.trim());
+    req.sessionUser!.name = realName.trim();
 
     res.json({
       success: true,

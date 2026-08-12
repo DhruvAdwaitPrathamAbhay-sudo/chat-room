@@ -13,7 +13,7 @@
  *   3. Room isolation: every query is scoped to the specific roomId stored in
  *      socket.data — never a client-provided roomId.
  *   4. Room deletion is race-safe: a lock map prevents concurrent deletes and
- *      the DB row is only removed when the active member count is confirmed 0.
+ *      the socket room is checked (not DB count) to confirm truly empty.
  *   5. Temporary disconnects are distinguished from true departures using a
  *      configurable grace period (ROOM_DELETE_DELAY_MS).
  */
@@ -25,12 +25,12 @@ import {
   getMembersForViewer,
   saveMessage,
   deleteRoom,
-  getActiveMemberCount,
   updateMemberStatus,
   logModerationAction,
   setIdentityVisible,
   findMembershipById,
 } from '../repositories/roomRepository';
+import { query } from '../config/db';
 import { verifySession } from '../services/authService';
 import { config } from '../config';
 
@@ -40,6 +40,15 @@ interface SocketContext {
   roomId: string;
   userId: string;
   membershipId: string;
+}
+
+// ── Module-level io reference (set by setupSocket, read by getIo) ─────────────
+let _io: Server | null = null;
+
+/** Returns the Socket.IO server instance. Throws if setupSocket hasn't been called. */
+export function getIo(): Server {
+  if (!_io) throw new Error('Socket.IO server not yet initialised.');
+  return _io;
 }
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -111,16 +120,26 @@ function scheduleRoomDeletion(roomId: string, delayMs: number): void {
 /**
  * Race-safe room deletion.
  * Uses roomDeleteInProgress to ensure only one concurrent deletion per room.
- * Re-checks the active member count inside the guard.
+ * Guards with SOCKET count (not DB member count) — the DB count is unreliable
+ * because it includes muted members and HTTP-joined-but-never-socketed users.
+ * If the room no longer exists (already deleted), silently returns.
  */
 async function performRoomDeletion(roomId: string): Promise<void> {
   if (roomDeleteInProgress.has(roomId)) return;
   roomDeleteInProgress.add(roomId);
   try {
-    const count = await getActiveMemberCount(roomId);
-    if (count === 0) {
-      await deleteRoom(roomId);
-      console.log(`[Room] Deleted empty room: ${roomId}`);
+    // Re-check: if any socket reconnected before the timer fired, cancel
+    const socketRoomId = `room:${roomId}`;
+    const liveCount = _io?.sockets.adapter.rooms.get(socketRoomId)?.size ?? 0;
+    if (liveCount > 0) return; // Someone reconnected — abort deletion
+
+    await deleteRoom(roomId);
+    console.log(`[Room] Permanently deleted room and all data: ${roomId}`);
+  } catch (err) {
+    // If the room row is already gone (e.g. cleared by admin), ignore
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.toLowerCase().includes('no rows') && !msg.toLowerCase().includes('not found')) {
+      console.error(`[Room] Deletion error for ${roomId}:`, msg);
     }
   } finally {
     roomDeleteInProgress.delete(roomId);
@@ -142,6 +161,7 @@ function cancelRoomDeletion(roomId: string): void {
 // ── Socket setup ─────────────────────────────────────────────────────────────
 
 export function setupSocket(io: Server): void {
+  _io = io; // Store for getIo()
 
   // ── Authentication middleware ────────────────────────────────────────────
   // All connections must present a valid veil_session cookie.
@@ -437,6 +457,25 @@ export function setupSocket(io: Server): void {
       messageRateLimits.delete(socket.id);
     });
   });
+
+  // ── Startup sweep ─────────────────────────────────────────────
+  // After a server restart all in-memory timers are gone. Schedule deletion
+  // for every active room that has no live sockets. Clients have 60 s to
+  // reconnect; if they do, cancelRoomDeletion fires and clears the timer.
+  setImmediate(async () => {
+    try {
+      const result = await query("SELECT id FROM rooms WHERE status = 'active'");
+      const roomIds: string[] = result.rows.map((r) => r.id as string);
+      if (roomIds.length > 0) {
+        console.log(`[Room] Startup sweep: scheduling cleanup for ${roomIds.length} existing room(s) — 60 s reconnection window.`);
+        for (const roomId of roomIds) {
+          scheduleRoomDeletion(roomId, 60_000);
+        }
+      }
+    } catch (err) {
+      console.error('[Room] Startup sweep error:', err instanceof Error ? err.message : err);
+    }
+  });
 }
 
 // ── handleLeave ───────────────────────────────────────────────────────────────
@@ -461,8 +500,6 @@ async function handleLeave(io: Server, socket: Socket, isDisconnect: boolean): P
   io.to(socketRoomId).emit('member.left', { memberId: membershipId });
 
   // Count currently online members (sockets in the room namespace)
-  // We use getActiveMemberCount (DB) as the source of truth for deletion
-  // but check socket room size first for a quick short-circuit
   const roomSockets = io.sockets.adapter.rooms.get(socketRoomId);
   const onlineCount = roomSockets ? roomSockets.size : 0;
 

@@ -18,6 +18,7 @@ import { joinRoom, ApiError } from "@/lib/api";
 
 export default function JoinMemberPage() {
   const router = useRouter();
+  const [realName, setRealName] = useState("");
   const [roomName, setRoomName] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -27,6 +28,14 @@ export default function JoinMemberPage() {
     e.preventDefault();
     setError("");
 
+    if (!realName.trim()) {
+      setError("Please enter your real name.");
+      return;
+    }
+    if (realName.trim().length > 100) {
+      setError("Real name must be 100 characters or fewer.");
+      return;
+    }
     const name = roomName.trim();
     if (!name) {
       setError("Please enter a Room Name.");
@@ -39,7 +48,7 @@ export default function JoinMemberPage() {
 
     setLoading(true);
     try {
-      const res = await joinRoom(name, password);
+      const res = await joinRoom(realName.trim(), name, password);
       router.push(`/room/${res.room.roomCode}`);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -68,12 +77,21 @@ export default function JoinMemberPage() {
               Join a private room
             </h2>
             <p className="text-sm text-[var(--veil-text-muted)] mt-1.5">
-              Enter the Room Name and Room Password to continue
+              Your real name is only revealed to the room admin if they choose.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {error && <Toast message={error} type="error" />}
+
+            <VeilInput
+              label="Real Name"
+              placeholder="Enter your real name"
+              value={realName}
+              onChange={(e) => setRealName(e.target.value)}
+              maxLength={100}
+              required
+            />
 
             <VeilInput
               label="Room Name"

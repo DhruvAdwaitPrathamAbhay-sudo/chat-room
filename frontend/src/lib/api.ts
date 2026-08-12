@@ -124,10 +124,17 @@ export interface JoinRoomResponse {
   };
 }
 
-export async function joinRoom(roomName: string, password: string) {
+export async function joinRoom(realName: string, roomName: string, password: string) {
   return request<JoinRoomResponse>("/rooms/join", {
     method: "POST",
-    body: JSON.stringify({ roomName, password }),
+    body: JSON.stringify({ realName, roomName, password }),
+  });
+}
+
+export async function clearAllRooms(globalAdminKey: string) {
+  return request<{ success: true; deletedRooms: number }>("/admin/rooms/clear", {
+    method: "POST",
+    body: JSON.stringify({ globalAdminKey }),
   });
 }
 

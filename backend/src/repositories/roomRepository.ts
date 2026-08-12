@@ -1,4 +1,5 @@
 import { query, getClient } from '../config/db';
+import { config } from '../config';
 import argon2 from 'argon2';
 import {
   generateAdminKey,
@@ -162,7 +163,7 @@ export async function createRoom(input: CreateRoomInput): Promise<CreateRoomResu
         `INSERT INTO rooms (room_code, name, description, password_hash, admin_key_hash, owner_id, max_members, status)
          VALUES ($1, $2, $3, $4, $5, $6, $7, 'active')
          RETURNING *`,
-        [roomCode, input.name.trim(), input.description?.trim() || null, passwordHash, adminKeyHash, input.ownerId, input.maxMembers || 50]
+        [roomCode, input.name.trim(), input.description?.trim() || null, passwordHash, adminKeyHash, input.ownerId, Math.min(input.maxMembers || config.maxRoomMembers, config.maxRoomMembers)]
       );
     } catch (dbErr: unknown) {
       const errObj = dbErr as { code?: string };
@@ -211,49 +212,92 @@ export async function createRoom(input: CreateRoomInput): Promise<CreateRoomResu
 export async function joinRoomAsMember(
   roomId: string,
   userId: string,
-  password: string
+  password: string,
+  realName?: string
 ): Promise<{ room: Room; membership: RoomMember }> {
-  const room = await findRoomById(roomId);
-  if (!room) throw Object.assign(new Error('Room not found.'), { statusCode: 404, code: 'ROOM_NOT_FOUND' });
-  if (room.status !== 'active') throw Object.assign(new Error('This room is closed.'), { statusCode: 403, code: 'ROOM_CLOSED' });
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
 
-  // Verify password
-  const roomRow = await query('SELECT password_hash FROM rooms WHERE id = $1', [roomId]);
-  const valid = await argon2.verify(roomRow.rows[0].password_hash, password);
-  if (!valid) throw Object.assign(new Error('Incorrect room password.'), { statusCode: 403, code: 'INVALID_ROOM_CREDENTIALS' });
-
-  // Check if already a member
-  const existing = await findMembership(roomId, userId);
-  if (existing) {
-    if (existing.status === 'banned') throw Object.assign(new Error('You are banned from this room.'), { statusCode: 403, code: 'MEMBERSHIP_BANNED' });
-    if (existing.status === 'removed') {
-      // Allow re-join after removal by resetting status
-      await query(
-        `UPDATE room_members SET status = 'active', updated_at = NOW() WHERE id = $1`,
-        [existing.id]
-      );
-      return { room, membership: { ...existing, status: 'active' } };
+    // Lock the room row for UPDATE to prevent race conditions on capacity
+    const roomRes = await client.query('SELECT * FROM rooms WHERE id = $1 FOR UPDATE', [roomId]);
+    if (roomRes.rows.length === 0) {
+      throw Object.assign(new Error('Room not found.'), { statusCode: 404, code: 'ROOM_NOT_FOUND' });
     }
-    return { room, membership: existing };
+    const room = rowToRoom(roomRes.rows[0]);
+    if (room.status !== 'active') {
+      throw Object.assign(new Error('This room is closed.'), { statusCode: 403, code: 'ROOM_CLOSED' });
+    }
+
+    // Update user's real name if provided
+    if (realName && realName.trim()) {
+      await client.query('UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2', [realName.trim(), userId]);
+    }
+
+    // Verify password
+    const valid = await argon2.verify(roomRes.rows[0].password_hash, password);
+    if (!valid) {
+      throw Object.assign(new Error('Incorrect room password.'), { statusCode: 403, code: 'INVALID_ROOM_CREDENTIALS' });
+    }
+
+    // Check existing membership inside the transaction
+    const existingRes = await client.query(
+      'SELECT * FROM room_members WHERE room_id = $1 AND user_id = $2',
+      [roomId, userId]
+    );
+    if (existingRes.rows.length > 0) {
+      const existing = rowToMember(existingRes.rows[0]);
+      if (existing.status === 'banned') {
+        throw Object.assign(new Error('You are banned from this room.'), { statusCode: 403, code: 'MEMBERSHIP_BANNED' });
+      }
+      if (existing.status === 'removed') {
+        await client.query(
+          `UPDATE room_members SET status = 'active', updated_at = NOW() WHERE id = $1`,
+          [existing.id]
+        );
+        await client.query('COMMIT');
+        return { room, membership: { ...existing, status: 'active' } };
+      }
+      await client.query('COMMIT');
+      return { room, membership: existing };
+    }
+
+    // Atomic capacity check
+    const countRes = await client.query(
+      `SELECT COUNT(*) FROM room_members WHERE room_id = $1 AND status NOT IN ('removed', 'banned')`,
+      [roomId]
+    );
+    const count = parseInt(countRes.rows[0].count, 10);
+    const maxCapacity = Math.min(room.maxMembers || 50, config.maxRoomMembers);
+    if (count >= maxCapacity) {
+      throw Object.assign(new Error('Room is full.'), { statusCode: 403, code: 'ROOM_FULL' });
+    }
+
+    // Generate unique anonymous identity inside transaction
+    const usedRes = await client.query(
+      `SELECT anonymous_name FROM room_members WHERE room_id = $1 AND status NOT IN ('removed', 'banned')`,
+      [roomId]
+    );
+    const usedNames = usedRes.rows.map((r) => r.anonymous_name as string);
+    const anonName = generateAnonymousName(usedNames);
+    const anonAvatar = generateAnonymousAvatar();
+
+    const insertRes = await client.query(
+      `INSERT INTO room_members (room_id, user_id, anonymous_name, anonymous_avatar, role, identity_visible, status)
+       VALUES ($1, $2, $3, $4, 'member', false, 'active')
+       RETURNING *`,
+      [roomId, userId, anonName, anonAvatar]
+    );
+    const membership = rowToMember(insertRes.rows[0]);
+
+    await client.query('COMMIT');
+    return { room, membership };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
   }
-
-  // Check capacity
-  const count = await getActiveMemberCount(roomId);
-  if (count >= room.maxMembers) throw Object.assign(new Error('Room is full.'), { statusCode: 403, code: 'ROOM_FULL' });
-
-  // Generate unique anonymous identity
-  const usedNames = await getUsedAnonymousNames(roomId);
-  const anonName = generateAnonymousName(usedNames);
-  const anonAvatar = generateAnonymousAvatar();
-
-  const result = await query(
-    `INSERT INTO room_members (room_id, user_id, anonymous_name, anonymous_avatar, role, identity_visible, status)
-     VALUES ($1, $2, $3, $4, 'member', false, 'active')
-     RETURNING *`,
-    [roomId, userId, anonName, anonAvatar]
-  );
-  const membership = rowToMember(result.rows[0]);
-  return { room, membership };
 }
 
 // ──────────────────────────────────────────────
@@ -319,11 +363,95 @@ export async function closeRoom(roomId: string): Promise<void> {
 
 // ──────────────────────────────────────────────
 // Delete Room (auto-cleanup when empty)
+// Permanently destroys the room AND all related data.
+// ON DELETE CASCADE on room_id handles: room_members, messages,
+// reports, moderation_actions.
+// After deletion, any users who are now orphaned (no remaining
+// room memberships) are also deleted — this removes their real
+// name, anonymous identity, and sessions (via CASCADE on sessions.user_id).
 // ──────────────────────────────────────────────
 
 export async function deleteRoom(roomId: string): Promise<void> {
-  // CASCADE handles room_members, messages, moderation_actions, etc.
-  await query('DELETE FROM rooms WHERE id = $1', [roomId]);
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Collect the user IDs that belong to this room BEFORE cascading delete
+    const memberRes = await client.query(
+      'SELECT DISTINCT user_id FROM room_members WHERE room_id = $1',
+      [roomId]
+    );
+    const userIds: string[] = memberRes.rows.map((r) => r.user_id as string);
+
+    // Delete the room — CASCADE removes room_members, messages, reports,
+    // moderation_actions automatically.
+    await client.query('DELETE FROM rooms WHERE id = $1', [roomId]);
+
+    // Delete users who are now orphaned (no remaining memberships in any room).
+    // This removes their real name (users.name) and cascades to sessions.
+    if (userIds.length > 0) {
+      await client.query(
+        `DELETE FROM users
+         WHERE id = ANY($1::uuid[])
+           AND NOT EXISTS (
+             SELECT 1 FROM room_members WHERE user_id = users.id
+           )`,
+        [userIds]
+      );
+    }
+
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ──────────────────────────────────────────────
+// Clear All Rooms (Global Admin emergency cleanup)
+// Permanently destroys every room and all dependent data.
+// Returns the count of deleted rooms.
+// ──────────────────────────────────────────────
+
+export async function clearAllRooms(): Promise<number> {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Collect ALL user IDs across ALL rooms before deletion
+    const memberRes = await client.query(
+      'SELECT DISTINCT user_id FROM room_members'
+    );
+    const userIds: string[] = memberRes.rows.map((r) => r.user_id as string);
+
+    // Delete all rooms — CASCADE removes all room-dependent data
+    const roomRes = await client.query(
+      'DELETE FROM rooms RETURNING id'
+    );
+    const deletedCount = roomRes.rowCount ?? 0;
+
+    // Delete orphaned users (those with no remaining room memberships)
+    if (userIds.length > 0) {
+      await client.query(
+        `DELETE FROM users
+         WHERE id = ANY($1::uuid[])
+           AND NOT EXISTS (
+             SELECT 1 FROM room_members WHERE user_id = users.id
+           )`,
+        [userIds]
+      );
+    }
+
+    await client.query('COMMIT');
+    return deletedCount;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // ──────────────────────────────────────────────
