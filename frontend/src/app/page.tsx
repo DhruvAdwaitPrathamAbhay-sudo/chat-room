@@ -6,12 +6,13 @@ import {
   EyeSlashIcon,
   PeopleIcon,
   CrownIcon,
-  FingerprintIcon,
   ChatIcon,
   DoorIcon,
   LockIcon,
 } from "@/components/ui";
 import { clearAllRooms, ApiError } from "@/lib/api";
+import InteractiveGlobe from "@/components/InteractiveGlobe";
+import { CountryData } from "@/components/geographic/countries";
 
 // ── Clear All Rooms Modal ─────────────────────────────────────────────────────
 
@@ -161,8 +162,8 @@ function ClearAllRoomsModal({ onClose }: { onClose: () => void }) {
 // ── Landing Page ──────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
-  const [revealed, setRevealed] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
+  const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
 
   return (
     <main className="min-h-dvh bg-[var(--veil-bg)] flex flex-col justify-between max-w-lg mx-auto border-x border-[var(--veil-border)]/40 shadow-2xl overflow-x-hidden">
@@ -230,38 +231,25 @@ export default function LandingPage() {
           </button>
         </section>
 
-        {/* ── Tap to Reveal Feature Card ──────────────────────────────────── */}
+        {/* ── Interactive 3D WebGL Earth Section ───────────────────────────── */}
         <section
-          className="mx-5 veil-card p-5 sm:p-6 text-center page-in mb-6"
+          className="mx-5 p-2 text-center page-in mb-6 flex flex-col items-center"
           style={{ animationDelay: "80ms" }}
         >
-          <h2 className="text-lg sm:text-xl font-bold text-white mb-2">Tap to Reveal</h2>
-          <p className="text-[var(--veil-text-muted)] text-xs sm:text-sm leading-relaxed mb-5">
-            Experience the transition from anonymity to connection. You control
-            the mask.
+          <h2 className="text-lg sm:text-xl font-bold text-white mb-1">
+            Global Anonymous Network
+          </h2>
+          <p className="text-[var(--veil-text-muted)] text-xs sm:text-sm leading-relaxed mb-3 max-w-xs">
+            Connecting anonymous people worldwide. Drag to rotate or click a region.
           </p>
-          <button
-            onClick={() => setRevealed((r) => !r)}
-            aria-label={revealed ? "Hide identity" : "Reveal identity"}
-            className={`
-              w-28 h-28 sm:w-36 sm:h-36 rounded-full mx-auto flex items-center justify-center
-              border-2 transition-all duration-300 cursor-pointer touch-manipulation
-              ${
-                revealed
-                  ? "border-[var(--veil-cyan)] bg-[var(--veil-cyan)]/10"
-                  : "border-[var(--veil-border)] bg-[var(--veil-surface-2)]"
-              }
-            `}
-          >
-            <FingerprintIcon
-              className={`transition-colors duration-300 ${
-                revealed ? "text-[var(--veil-cyan)]" : "text-[var(--veil-text-muted)]"
-              }`}
-            />
-          </button>
-          {revealed && (
-            <p className="mt-3.5 text-[var(--veil-cyan)] text-xs sm:text-sm font-medium animate-pulse">
-              Identity revealed
+
+          <div className="w-full flex justify-center">
+            <InteractiveGlobe onCountrySelect={(country) => setSelectedCountry(country)} />
+          </div>
+
+          {selectedCountry && (
+            <p className="mt-2 text-[var(--veil-cyan)] text-xs font-medium animate-pulse">
+              Selected Region: {selectedCountry.name} ({selectedCountry.isoCode})
             </p>
           )}
         </section>
