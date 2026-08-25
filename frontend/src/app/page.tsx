@@ -9,7 +9,7 @@ import {
   LockIcon,
 } from "@/components/ui";
 import { clearAllRooms, ApiError } from "@/lib/api";
-import InteractiveGlobe from "@/components/InteractiveGlobe";
+import InteractiveGlobe from "@/components/Globe/InteractiveGlobe";
 import { CountryData } from "@/components/geographic/countries";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -284,7 +284,7 @@ export default function LandingPage() {
         {/* Subtle radial glow behind globe */}
         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[55vw] h-[55vw] max-w-[800px] max-h-[800px] rounded-full bg-blue-600/8 blur-[120px] pointer-events-none" />
 
-        <div className="relative z-10 w-full max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-12 py-12 lg:py-0 grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-4 items-center">
+        <div className="relative z-10 w-full max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-12 py-12 lg:py-0 grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(500px,1.1fr)] gap-8 lg:gap-4 items-center">
 
           {/* ── LEFT: Content ── */}
           <div className="flex flex-col justify-center page-in">
@@ -354,9 +354,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* ── RIGHT: Globe ── */}
           <div
-            className="relative flex items-center justify-center page-in lg:h-[min(90vh,800px)] h-[420px] sm:h-[520px]"
+            className="w-full h-full min-h-[420px] sm:min-h-[520px] lg:min-h-[650px] flex items-center justify-center page-in"
             style={{ animationDelay: "80ms" }}
           >
             <InteractiveGlobe
