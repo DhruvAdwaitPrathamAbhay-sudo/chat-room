@@ -3,56 +3,91 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { CountryData } from "./geographic/countries";
-import { FingerprintIcon } from "./ui";
 
-// Dynamic import with SSR disabled for Three.js WebGL canvas
 const GlobeScene = dynamic(() => import("./GlobeScene"), {
   ssr: false,
-  loading: () => <GlobeFallback />,
+  loading: () => <GlobeSkeleton />,
 });
 
 interface InteractiveGlobeProps {
   onCountrySelect?: (country: CountryData) => void;
   className?: string;
+  /** Show the stats panel overlay (people online / active rooms) */
+  showStats?: boolean;
 }
 
-export default function InteractiveGlobe({ onCountrySelect, className = "" }: InteractiveGlobeProps) {
-  const [webGlSupported, setWebGlSupported] = useState<boolean | null>(null);
+// Demo stats — wire to real backend data when API supports it
+const DEMO_STATS = {
+  peopleOnline: 2847,
+  activeRooms: 156,
+};
+
+export default function InteractiveGlobe({
+  onCountrySelect,
+  className = "",
+  showStats = false,
+}: InteractiveGlobeProps) {
+  const [webGlOk, setWebGlOk] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // WebGL capability check
     try {
-      const canvas = document.createElement("canvas");
-      const hasWebGL = !!(
-        window.WebGLRenderingContext &&
-        (canvas.getContext("webgl") || canvas.getContext("experimental-webgl"))
+      const c = document.createElement("canvas");
+      setWebGlOk(
+        !!(
+          window.WebGLRenderingContext &&
+          (c.getContext("webgl") || c.getContext("experimental-webgl"))
+        )
       );
-      setWebGlSupported(hasWebGL);
     } catch {
-      setWebGlSupported(false);
+      setWebGlOk(false);
     }
   }, []);
 
-  if (webGlSupported === false) {
-    return <GlobeFallback />;
-  }
+  if (webGlOk === false) return <GlobeSkeleton />;
 
   return (
-    <div className={`relative w-full h-[360px] sm:h-[440px] md:h-[520px] lg:h-[620px] xl:h-[680px] flex items-center justify-center ${className}`}>
+    <div className={`relative w-full h-full ${className}`}>
       <GlobeScene onCountrySelect={onCountrySelect} />
+
+      {/* Stats overlay — bottom right of globe area */}
+      {showStats && (
+        <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-20 pointer-events-none">
+          <div className="flex items-center gap-4 bg-black/70 border border-white/10 backdrop-blur-xl rounded-2xl px-5 py-3 shadow-2xl">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                <span className="text-gray-400 text-xs font-medium">People online</span>
+              </div>
+              <span className="text-white text-xl font-bold tabular-nums">
+                {DEMO_STATS.peopleOnline.toLocaleString()}
+              </span>
+            </div>
+            <div className="w-px h-10 bg-white/10" />
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" style={{ animationDelay: "0.5s" }} />
+                <span className="text-gray-400 text-xs font-medium">Active rooms</span>
+              </div>
+              <span className="text-white text-xl font-bold tabular-nums">
+                {DEMO_STATS.activeRooms}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function GlobeFallback() {
+function GlobeSkeleton() {
   return (
-    <div className="w-full h-[360px] sm:h-[440px] flex flex-col items-center justify-center">
-      <div className="w-36 h-36 sm:w-48 sm:h-48 rounded-full bg-gradient-to-tr from-[#050811] via-[#121d2d] to-[var(--veil-cyan)]/20 border-2 border-[var(--veil-cyan)]/40 flex items-center justify-center shadow-[0_0_40px_rgba(0,240,255,0.2)] animate-pulse">
-        <FingerprintIcon className="text-[var(--veil-cyan)] w-14 h-14" />
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="relative">
+        <div className="w-48 h-48 sm:w-64 sm:h-64 lg:w-80 lg:h-80 rounded-full bg-gradient-to-br from-[#050a18] via-[#0a1628] to-[#030609] border border-cyan-500/20 shadow-[0_0_60px_rgba(0,180,255,0.15)] animate-pulse" />
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-3 h-3 rounded-full bg-cyan-400 animate-ping" />
+        </div>
       </div>
-      <p className="mt-4 text-xs text-[var(--veil-text-muted)] font-medium">
-        Connecting to global anonymous spaces...
-      </p>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as THREE from "three";
 import { COUNTRIES, CountryData, latLngToVector3 } from "./geographic/countries";
 import { createInitialGlobeState, updateGlobeState, GlobeState } from "./GlobeControls";
@@ -10,124 +10,180 @@ interface GlobeSceneProps {
   className?: string;
 }
 
+// Earth texture URLs — realistic night-side Earth from NASA/public domain
+const EARTH_NIGHT_TEXTURE =
+  "https://raw.githubusercontent.com/turban/webgl-earth/master/images/4096-night.jpg";
+const EARTH_DAY_TEXTURE =
+  "https://raw.githubusercontent.com/turban/webgl-earth/master/images/2_no_clouds_4k.jpg";
+const EARTH_SPECULAR_TEXTURE =
+  "https://raw.githubusercontent.com/turban/webgl-earth/master/images/water_4k.png";
+
 export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredCountry, setHoveredCountry] = useState<CountryData | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
   const stateRef = useRef<GlobeState>(createInitialGlobeState());
 
+  const handleCountrySelect = useCallback(
+    (country: CountryData) => {
+      setSelectedCountry(country);
+      if (onCountrySelect) onCountrySelect(country);
+    },
+    [onCountrySelect]
+  );
+
   useEffect(() => {
     const targetContainer = containerRef.current;
     if (!targetContainer) return;
 
-    // ── 1. Setup Scene, Camera, Renderer ──────────────────────────────────────
-    const width = targetContainer.clientWidth || 320;
-    const height = targetContainer.clientHeight || 320;
+    // ── 1. Setup ────────────────────────────────────────────────────────────
+    const width = targetContainer.clientWidth || 500;
+    const height = targetContainer.clientHeight || 500;
 
     const scene = new THREE.Scene();
-
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
     camera.position.z = stateRef.current.zoom;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
-
+    renderer.toneMappingExposure = 0.9;
     targetContainer.appendChild(renderer.domElement);
 
-    // ── 2. Lights ─────────────────────────────────────────────────────────────
-    const ambientLight = new THREE.AmbientLight(0x1a2b3c, 1.6);
-    scene.add(ambientLight);
+    // ── 2. Stars background ──────────────────────────────────────────────────
+    const starGeom = new THREE.BufferGeometry();
+    const starCount = 2000;
+    const starPositions = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount * 3; i++) {
+      starPositions[i] = (Math.random() - 0.5) * 300;
+    }
+    starGeom.setAttribute("position", new THREE.BufferAttribute(starPositions, 3));
+    const starMat = new THREE.PointsMaterial({
+      color: 0xffffff,
+      size: 0.18,
+      transparent: true,
+      opacity: 0.7,
+    });
+    scene.add(new THREE.Points(starGeom, starMat));
 
-    const dirLight = new THREE.DirectionalLight(0x00f0ff, 2.2);
-    dirLight.position.set(5, 3, 5);
-    scene.add(dirLight);
+    // ── 3. Lights ────────────────────────────────────────────────────────────
+    scene.add(new THREE.AmbientLight(0x111122, 2));
 
-    const backLight = new THREE.DirectionalLight(0x005588, 1.4);
-    backLight.position.set(-5, -3, -5);
+    // Sunlight from the left-front — illuminates day side
+    const sunLight = new THREE.DirectionalLight(0xffffff, 3.5);
+    sunLight.position.set(-5, 2, 3);
+    scene.add(sunLight);
+
+    // Subtle cyan backlight / atmosphere glow
+    const backLight = new THREE.DirectionalLight(0x1a88ff, 0.6);
+    backLight.position.set(5, -1, -3);
     scene.add(backLight);
 
-    // ── 3. Earth Group & Texture Generation ───────────────────────────────────
+    // ── 4. Globe group ───────────────────────────────────────────────────────
     const globeGroup = new THREE.Group();
     scene.add(globeGroup);
-
     const GLOBE_RADIUS = 2.0;
 
-    // Procedural Dark Earth Canvas Texture
-    const textureCanvas = document.createElement("canvas");
-    textureCanvas.width = 1024;
-    textureCanvas.height = 512;
-    const ctx = textureCanvas.getContext("2d");
+    // ── 5. Earth sphere with real texture ────────────────────────────────────
+    const loader = new THREE.TextureLoader();
+    loader.crossOrigin = "anonymous";
 
+    const globeGeometry = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
+
+    // Start with a dark procedural texture while real one loads
+    const fallbackCanvas = document.createElement("canvas");
+    fallbackCanvas.width = 512;
+    fallbackCanvas.height = 256;
+    const ctx = fallbackCanvas.getContext("2d");
     if (ctx) {
-      // Deep dark navy/black ocean background
-      ctx.fillStyle = "#050811";
-      ctx.fillRect(0, 0, 1024, 512);
+      // Deep dark ocean
+      const grad = ctx.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0, "#050a18");
+      grad.addColorStop(1, "#030609");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 256);
 
-      // Subtle longitude & latitude grid lines
-      ctx.strokeStyle = "rgba(0, 240, 255, 0.09)";
+      // Grid lines
+      ctx.strokeStyle = "rgba(0, 200, 255, 0.07)";
       ctx.lineWidth = 1;
-
-      for (let x = 0; x <= 1024; x += 64) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, 512);
-        ctx.stroke();
+      for (let x = 0; x < 512; x += 32) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 256); ctx.stroke();
       }
-      for (let y = 0; y <= 512; y += 32) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(1024, y);
-        ctx.stroke();
+      for (let y = 0; y < 256; y += 16) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
       }
 
-      // Stylized continent landmass dots
-      ctx.fillStyle = "#121d2d";
-      for (let i = 0; i < 4500; i++) {
-        const x = Math.random() * 1024;
-        const y = Math.random() * 512;
-        // Simple land distribution clustering
-        if (
-          (y > 70 && y < 390 && (x < 360 || (x > 440 && x < 860))) ||
-          (y > 290 && y < 460 && x > 240 && x < 410)
-        ) {
+      // Landmass blobs
+      ctx.fillStyle = "#0d1f30";
+      for (let i = 0; i < 2000; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 256;
+        const isLand =
+          (y > 40 && y < 200 && (x < 180 || (x > 220 && x < 420))) ||
+          (y > 160 && y < 230 && x > 120 && x < 210);
+        if (isLand) {
           ctx.beginPath();
-          ctx.arc(x, y, Math.random() * 2.5 + 1, 0, Math.PI * 2);
+          ctx.arc(x, y, Math.random() * 3 + 1, 0, Math.PI * 2);
           ctx.fill();
         }
       }
 
-      // City light points in electric cyan
-      ctx.fillStyle = "#00f0ff";
-      for (let i = 0; i < 200; i++) {
-        const x = Math.random() * 1024;
-        const y = Math.random() * 512;
-        if (
-          (y > 90 && y < 360 && (x < 330 || (x > 470 && x < 840)))
-        ) {
+      // City lights — golden amber
+      ctx.fillStyle = "#ffa040";
+      for (let i = 0; i < 120; i++) {
+        const x = Math.random() * 512;
+        const y = Math.random() * 256;
+        const isLand =
+          (y > 50 && y < 190 && (x < 170 || (x > 230 && x < 410)));
+        if (isLand) {
+          ctx.globalAlpha = Math.random() * 0.8 + 0.2;
           ctx.beginPath();
           ctx.arc(x, y, 1.2, 0, Math.PI * 2);
           ctx.fill();
         }
       }
+      ctx.globalAlpha = 1;
     }
 
-    const earthTexture = new THREE.CanvasTexture(textureCanvas);
-    const globeGeometry = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
-    const globeMaterial = new THREE.MeshStandardMaterial({
-      map: earthTexture,
-      roughness: 0.65,
-      metalness: 0.15,
+    const fallbackTexture = new THREE.CanvasTexture(fallbackCanvas);
+    const globeMaterial = new THREE.MeshPhongMaterial({
+      map: fallbackTexture,
+      shininess: 8,
+      specular: new THREE.Color(0x1a3a5c),
     });
-
     const globeMesh = new THREE.Mesh(globeGeometry, globeMaterial);
     globeGroup.add(globeMesh);
 
-    // ── 4. Atmosphere Rim Glow ────────────────────────────────────────────────
-    const atmosphereGeometry = new THREE.SphereGeometry(GLOBE_RADIUS * 1.08, 64, 64);
-    const atmosphereMaterial = new THREE.ShaderMaterial({
+    // Try loading real NASA night Earth texture
+    loader.load(
+      EARTH_NIGHT_TEXTURE,
+      (nightTex) => {
+        nightTex.colorSpace = THREE.SRGBColorSpace;
+        globeMaterial.map = nightTex;
+        globeMaterial.needsUpdate = true;
+
+        // Load specular for ocean shimmer
+        loader.load(EARTH_SPECULAR_TEXTURE, (specTex) => {
+          globeMaterial.specularMap = specTex;
+          globeMaterial.shininess = 30;
+          globeMaterial.specular = new THREE.Color(0x336688);
+          globeMaterial.needsUpdate = true;
+        });
+      },
+      undefined,
+      () => {
+        // Silently keep the fallback texture on error
+      }
+    );
+
+    // ── 6. Atmosphere glow ───────────────────────────────────────────────────
+    const atmGeom = new THREE.SphereGeometry(GLOBE_RADIUS * 1.06, 64, 64);
+    const atmMat = new THREE.ShaderMaterial({
       vertexShader: `
         varying vec3 vNormal;
         void main() {
@@ -138,134 +194,140 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
       fragmentShader: `
         varying vec3 vNormal;
         void main() {
-          float intensity = pow(0.68 - dot(vNormal, vec3(0, 0, 1.0)), 2.2);
-          gl_FragColor = vec4(0.0, 0.94, 1.0, 1.0) * intensity * 0.5;
+          float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+          rim = pow(rim, 3.0);
+          gl_FragColor = vec4(0.1, 0.5, 1.0, 1.0) * rim * 0.7;
         }
       `,
       blending: THREE.AdditiveBlending,
       side: THREE.BackSide,
       transparent: true,
+      depthWrite: false,
     });
+    globeGroup.add(new THREE.Mesh(atmGeom, atmMat));
 
-    const atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
-    globeGroup.add(atmosphereMesh);
+    // Outer softer glow halo
+    const haloGeom = new THREE.SphereGeometry(GLOBE_RADIUS * 1.14, 64, 64);
+    const haloMat = new THREE.ShaderMaterial({
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vNormal;
+        void main() {
+          float rim = 1.0 - abs(dot(vNormal, vec3(0.0, 0.0, 1.0)));
+          rim = pow(rim, 5.0);
+          gl_FragColor = vec4(0.05, 0.3, 0.9, 1.0) * rim * 0.35;
+        }
+      `,
+      blending: THREE.AdditiveBlending,
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false,
+    });
+    globeGroup.add(new THREE.Mesh(haloGeom, haloMat));
 
-    // ── 5. Country Markers & Network Arcs ─────────────────────────────────────
+    // ── 7. Country markers ───────────────────────────────────────────────────
     const markersGroup = new THREE.Group();
     globeGroup.add(markersGroup);
 
-    const markerMeshes: { mesh: THREE.Mesh; country: CountryData }[] = [];
+    const markerMeshes: { mesh: THREE.Mesh; country: CountryData; ring: THREE.Mesh }[] = [];
 
     COUNTRIES.forEach((country) => {
-      const [x, y, z] = latLngToVector3(country.lat, country.lng, GLOBE_RADIUS + 0.03);
+      const [x, y, z] = latLngToVector3(country.lat, country.lng, GLOBE_RADIUS + 0.025);
 
-      // Marker Dot
-      const markerGeom = new THREE.SphereGeometry(0.045, 16, 16);
-      const markerMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
-      const markerMesh = new THREE.Mesh(markerGeom, markerMat);
-      markerMesh.position.set(x, y, z);
-      markersGroup.add(markerMesh);
+      // Inner dot
+      const dotGeom = new THREE.SphereGeometry(0.035, 12, 12);
+      const dotMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
+      const dot = new THREE.Mesh(dotGeom, dotMat);
+      dot.position.set(x, y, z);
+      markersGroup.add(dot);
 
-      // Pulsing outer ring
-      const ringGeom = new THREE.RingGeometry(0.06, 0.085, 24);
+      // Pulsing ring
+      const ringGeom = new THREE.RingGeometry(0.05, 0.07, 20);
       const ringMat = new THREE.MeshBasicMaterial({
         color: 0x00f0ff,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.65,
+        opacity: 0.7,
       });
-      const ringMesh = new THREE.Mesh(ringGeom, ringMat);
-      ringMesh.position.set(x, y, z);
-      ringMesh.lookAt(0, 0, 0);
-      markersGroup.add(ringMesh);
+      const ring = new THREE.Mesh(ringGeom, ringMat);
+      ring.position.set(x, y, z);
+      ring.lookAt(0, 0, 0);
+      markersGroup.add(ring);
 
-      markerMeshes.push({ mesh: markerMesh, country });
+      markerMeshes.push({ mesh: dot, country, ring });
     });
 
-    // Network Arcs between pairs of countries
-    const arcPairs = [
-      [0, 1], // India <-> US
-      [0, 2], // India <-> UK
-      [1, 4], // US <-> Japan
-      [2, 3], // UK <-> Germany
-      [3, 8], // Germany <-> France
-      [1, 7], // US <-> Canada
-      [0, 10], // India <-> Singapore
-      [4, 9], // Japan <-> South Korea
+    // Connection arcs between country pairs
+    const arcPairs: [number, number][] = [
+      [0, 1], [0, 2], [1, 4], [2, 3],
+      [3, 8], [1, 7], [0, 10], [4, 9],
+      [5, 6], [11, 12],
     ];
 
     arcPairs.forEach(([i, j]) => {
       if (!COUNTRIES[i] || !COUNTRIES[j]) return;
-      const startVec = new THREE.Vector3(...latLngToVector3(COUNTRIES[i].lat, COUNTRIES[i].lng, GLOBE_RADIUS));
-      const endVec = new THREE.Vector3(...latLngToVector3(COUNTRIES[j].lat, COUNTRIES[j].lng, GLOBE_RADIUS));
+      const sv = new THREE.Vector3(...latLngToVector3(COUNTRIES[i].lat, COUNTRIES[i].lng, GLOBE_RADIUS));
+      const ev = new THREE.Vector3(...latLngToVector3(COUNTRIES[j].lat, COUNTRIES[j].lng, GLOBE_RADIUS));
+      const mid = sv.clone().add(ev).multiplyScalar(0.5);
+      mid.setLength(GLOBE_RADIUS + sv.distanceTo(ev) * 0.28);
 
-      const midVec = startVec.clone().add(endVec).multiplyScalar(0.5);
-      const distance = startVec.distanceTo(endVec);
-      midVec.setLength(GLOBE_RADIUS + distance * 0.25);
-
-      const curve = new THREE.QuadraticBezierCurve3(startVec, midVec, endVec);
-      const points = curve.getPoints(32);
-      const curveGeom = new THREE.BufferGeometry().setFromPoints(points);
-
-      const curveMat = new THREE.LineBasicMaterial({
-        color: 0x00f0ff,
+      const curve = new THREE.QuadraticBezierCurve3(sv, mid, ev);
+      const pts = curve.getPoints(40);
+      const geom = new THREE.BufferGeometry().setFromPoints(pts);
+      const mat = new THREE.LineBasicMaterial({
+        color: 0x00ccff,
         transparent: true,
-        opacity: 0.35,
+        opacity: 0.3,
       });
-
-      const arcLine = new THREE.Line(curveGeom, curveMat);
-      markersGroup.add(arcLine);
+      markersGroup.add(new THREE.Line(geom, mat));
     });
 
-    // ── 6. Pointer & Raycasting ───────────────────────────────────────────────
+    // ── 8. Raycasting ────────────────────────────────────────────────────────
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
 
-    function onPointerMove(e: MouseEvent | TouchEvent) {
-      if (!targetContainer) return;
+    const getClientPos = (e: MouseEvent | TouchEvent) => ({
+      x: "touches" in e ? e.touches[0].clientX : e.clientX,
+      y: "touches" in e ? e.touches[0].clientY : e.clientY,
+    });
+
+    function castRay(clientX: number, clientY: number) {
+      if (!targetContainer) return [];
       const rect = targetContainer.getBoundingClientRect();
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-
-      mouse.x = ((clientX - rect.left) / width) * 2 - 1;
-      mouse.y = -((clientY - rect.top) / height) * 2 + 1;
-
+      mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(
-        markerMeshes.map((m) => m.mesh)
-      );
+      return raycaster.intersectObjects(markerMeshes.map((m) => m.mesh));
+    }
 
-      if (intersects.length > 0) {
-        const hit = markerMeshes.find((m) => m.mesh === intersects[0].object);
+    function onMouseMove(e: MouseEvent) {
+      if (!targetContainer) return;
+      const hits = castRay(e.clientX, e.clientY);
+      if (hits.length > 0) {
+        const hit = markerMeshes.find((m) => m.mesh === hits[0].object);
         if (hit) {
           setHoveredCountry(hit.country);
           targetContainer.style.cursor = "pointer";
           return;
         }
       }
-
       setHoveredCountry(null);
       targetContainer.style.cursor = stateRef.current.isDragging ? "grabbing" : "grab";
     }
 
-    function onPointerClick(e: MouseEvent) {
-      if (!targetContainer) return;
-      const rect = targetContainer.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(
-        markerMeshes.map((m) => m.mesh)
-      );
-
-      if (intersects.length > 0) {
-        const hit = markerMeshes.find((m) => m.mesh === intersects[0].object);
+    function onClick(e: MouseEvent) {
+      if (stateRef.current.isDragging) return;
+      const hits = castRay(e.clientX, e.clientY);
+      if (hits.length > 0) {
+        const hit = markerMeshes.find((m) => m.mesh === hits[0].object);
         if (hit) {
-          setSelectedCountry(hit.country);
-          if (onCountrySelect) onCountrySelect(hit.country);
-
-          // Smoothly rotate globe to center selected country
+          handleCountrySelect(hit.country);
           const phi = (90 - hit.country.lat) * (Math.PI / 180);
           const theta = (hit.country.lng + 180) * (Math.PI / 180);
           stateRef.current.targetRotationX = phi - Math.PI / 2;
@@ -276,38 +338,37 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
       }
     }
 
-    // ── 7. Drag & Zoom Event Handlers ────────────────────────────────────────
-    let previousPointerPosition = { x: 0, y: 0 };
+    // ── 9. Drag & zoom ───────────────────────────────────────────────────────
+    let prevPos = { x: 0, y: 0 };
+    let dragStartPos = { x: 0, y: 0 };
 
     function onPointerDown(e: MouseEvent | TouchEvent) {
+      const { x, y } = getClientPos(e);
       stateRef.current.isDragging = true;
-      stateRef.current.isInteracting = true;
       stateRef.current.lastInteractionTime = Date.now();
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-      previousPointerPosition = { x: clientX, y: clientY };
+      prevPos = { x, y };
+      dragStartPos = { x, y };
     }
 
-    function onPointerDrag(e: MouseEvent | TouchEvent) {
+    function onPointerMove(e: MouseEvent | TouchEvent) {
       if (!stateRef.current.isDragging) return;
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-
-      const deltaX = clientX - previousPointerPosition.x;
-      const deltaY = clientY - previousPointerPosition.y;
-
-      stateRef.current.targetRotationY += deltaX * 0.006;
-      stateRef.current.targetRotationX += deltaY * 0.006;
+      const { x, y } = getClientPos(e);
+      const dx = x - prevPos.x;
+      const dy = y - prevPos.y;
+      stateRef.current.targetRotationY += dx * 0.006;
+      stateRef.current.targetRotationX += dy * 0.006;
       stateRef.current.lastInteractionTime = Date.now();
-
-      previousPointerPosition = { x: clientX, y: clientY };
+      prevPos = { x, y };
     }
 
-    function onPointerUp() {
-      stateRef.current.isDragging = false;
-      if (targetContainer) {
-        targetContainer.style.cursor = "grab";
+    function onPointerUp(e: MouseEvent | TouchEvent) {
+      const { x, y } = getClientPos(e);
+      const dist = Math.hypot(x - dragStartPos.x, y - dragStartPos.y);
+      if (dist < 5 && e instanceof MouseEvent) {
+        onClick(e);
       }
+      stateRef.current.isDragging = false;
+      if (targetContainer) targetContainer.style.cursor = "grab";
     }
 
     function onWheel(e: WheelEvent) {
@@ -316,63 +377,67 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
       stateRef.current.lastInteractionTime = Date.now();
     }
 
-    targetContainer.addEventListener("mousemove", onPointerMove);
-    targetContainer.addEventListener("click", onPointerClick);
+    targetContainer.addEventListener("mousemove", onMouseMove);
     targetContainer.addEventListener("mousedown", onPointerDown);
-    window.addEventListener("mousemove", onPointerDrag);
+    window.addEventListener("mousemove", onPointerMove);
     window.addEventListener("mouseup", onPointerUp);
     targetContainer.addEventListener("wheel", onWheel, { passive: false });
-
-    // Touch events for mobile
     targetContainer.addEventListener("touchstart", onPointerDown, { passive: true });
-    targetContainer.addEventListener("touchmove", onPointerDrag, { passive: true });
-    targetContainer.addEventListener("touchend", onPointerUp, { passive: true });
+    window.addEventListener("touchmove", onPointerMove, { passive: true });
+    window.addEventListener("touchend", onPointerUp, { passive: true });
 
-    // ── 8. Animation Loop ─────────────────────────────────────────────────────
+    // ── 10. Animation loop ───────────────────────────────────────────────────
     const clock = new THREE.Clock();
-    let animationFrameId: number;
+    let raf: number;
+    let t = 0;
 
     function animate() {
-      animationFrameId = requestAnimationFrame(animate);
-
+      raf = requestAnimationFrame(animate);
       const delta = clock.getDelta();
-      updateGlobeState(stateRef.current, delta, 0.15);
+      t += delta;
 
-      // Apply rotation to globe group
+      updateGlobeState(stateRef.current, delta, 0.12);
       globeGroup.rotation.x = stateRef.current.rotationX;
       globeGroup.rotation.y = stateRef.current.rotationY;
       camera.position.z = stateRef.current.zoom;
+
+      // Animate marker rings — pulsing scale
+      markerMeshes.forEach(({ ring }, idx) => {
+        const phase = (t * 1.5 + idx * 0.6) % (Math.PI * 2);
+        const pulse = 1 + Math.sin(phase) * 0.25;
+        ring.scale.setScalar(pulse);
+        const mat = ring.material as THREE.MeshBasicMaterial;
+        mat.opacity = 0.4 + Math.sin(phase) * 0.3;
+      });
 
       renderer.render(scene, camera);
     }
 
     animate();
 
-    // ── 9. Resize Listener ───────────────────────────────────────────────────
-    function handleResize() {
+    // ── 11. Resize ───────────────────────────────────────────────────────────
+    function onResize() {
       if (!targetContainer) return;
-      const newWidth = targetContainer.clientWidth;
-      const newHeight = targetContainer.clientHeight;
-      camera.aspect = newWidth / newHeight;
+      const w = targetContainer.clientWidth;
+      const h = targetContainer.clientHeight;
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(newWidth, newHeight);
+      renderer.setSize(w, h);
     }
-
-    window.addEventListener("resize", handleResize);
+    window.addEventListener("resize", onResize);
 
     // ── Cleanup ──────────────────────────────────────────────────────────────
     return () => {
-      cancelAnimationFrame(animationFrameId);
-      window.removeEventListener("resize", handleResize);
-      targetContainer.removeEventListener("mousemove", onPointerMove);
-      targetContainer.removeEventListener("click", onPointerClick);
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", onResize);
+      targetContainer.removeEventListener("mousemove", onMouseMove);
       targetContainer.removeEventListener("mousedown", onPointerDown);
-      window.removeEventListener("mousemove", onPointerDrag);
+      window.removeEventListener("mousemove", onPointerMove);
       window.removeEventListener("mouseup", onPointerUp);
       targetContainer.removeEventListener("wheel", onWheel);
       targetContainer.removeEventListener("touchstart", onPointerDown);
-      targetContainer.removeEventListener("touchmove", onPointerDrag);
-      targetContainer.removeEventListener("touchend", onPointerUp);
+      window.removeEventListener("touchmove", onPointerMove);
+      window.removeEventListener("touchend", onPointerUp);
 
       if (targetContainer.contains(renderer.domElement)) {
         targetContainer.removeChild(renderer.domElement);
@@ -380,37 +445,67 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
       renderer.dispose();
       globeGeometry.dispose();
       globeMaterial.dispose();
-      earthTexture.dispose();
-      atmosphereGeometry.dispose();
-      atmosphereMaterial.dispose();
+      fallbackTexture.dispose();
+      starGeom.dispose();
+      starMat.dispose();
+      atmGeom.dispose();
+      atmMat.dispose();
+      haloGeom.dispose();
+      haloMat.dispose();
     };
-  }, [onCountrySelect]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleCountrySelect]);
 
   return (
-    <div className={`relative w-full h-full min-h-[340px] ${className}`}>
-      <div ref={containerRef} className="w-full h-full min-h-[340px] touch-none cursor-grab" />
+    <div className={`relative w-full h-full ${className}`}>
+      <div
+        ref={containerRef}
+        className="w-full h-full touch-none cursor-grab select-none"
+        aria-label="Interactive 3D Earth globe. Drag to rotate, scroll to zoom."
+        role="img"
+      />
 
-      {/* Hover & Active Country Tooltip Overlay */}
+      {/* Country hover tooltip */}
       {hoveredCountry && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-[var(--veil-surface)]/95 border border-[var(--veil-cyan)]/60 backdrop-blur-md px-4 py-2 rounded-full text-xs font-semibold text-white flex items-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.2)] pointer-events-none z-10 animate-in fade-in duration-150">
-          <span className="w-2 h-2 rounded-full bg-[var(--veil-cyan)] animate-ping" />
-          <span>{hoveredCountry.name} ({hoveredCountry.isoCode})</span>
-          {hoveredCountry.activeUsers && (
-            <span className="text-[var(--veil-cyan)] font-mono">
-              • {hoveredCountry.activeUsers} online
-            </span>
-          )}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-none z-20 animate-in fade-in duration-100">
+          <div className="bg-black/80 border border-cyan-400/60 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2.5 shadow-lg shadow-cyan-500/10">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-white text-sm font-semibold">{hoveredCountry.name}</span>
+            <span className="text-cyan-400 text-xs font-mono">{hoveredCountry.isoCode}</span>
+            {hoveredCountry.activeUsers && (
+              <span className="text-gray-400 text-xs">· {hoveredCountry.activeUsers} online</span>
+            )}
+          </div>
         </div>
       )}
 
+      {/* Country click info panel */}
       {selectedCountry && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[var(--veil-surface-2)]/95 border border-[var(--veil-cyan)]/60 backdrop-blur-md px-5 py-2.5 rounded-2xl text-xs text-center text-white shadow-2xl pointer-events-none z-10">
-          <span className="font-bold text-[var(--veil-cyan)]">{selectedCountry.name} Selected</span>
-          <p className="text-[11px] text-[var(--veil-text-muted)] mt-0.5">
-            Connecting to anonymous peers in {selectedCountry.region}...
-          </p>
+        <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none z-20">
+          <div className="bg-black/85 border border-white/10 backdrop-blur-xl rounded-2xl px-4 py-3 min-w-[140px] shadow-2xl">
+            <p className="text-white font-bold text-sm">{selectedCountry.name}</p>
+            <p className="text-gray-400 text-xs mt-0.5">Click to explore</p>
+          </div>
         </div>
       )}
+
+      {/* Zoom controls */}
+      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col gap-1 z-20">
+        {[
+          { label: "+", action: () => { stateRef.current.targetZoom = Math.max(3.5, stateRef.current.targetZoom - 0.5); stateRef.current.lastInteractionTime = Date.now(); } },
+          { label: "−", action: () => { stateRef.current.targetZoom = Math.min(9, stateRef.current.targetZoom + 0.5); stateRef.current.lastInteractionTime = Date.now(); } },
+          { label: "⊙", action: () => { stateRef.current.targetZoom = 5.5; stateRef.current.targetRotationX = 0.3; stateRef.current.targetRotationY = 0; stateRef.current.lastInteractionTime = Date.now(); } },
+        ].map(({ label, action }) => (
+          <button
+            key={label}
+            onClick={action}
+            aria-label={label === "+" ? "Zoom in" : label === "−" ? "Zoom out" : "Reset view"}
+            className="w-8 h-8 bg-black/60 border border-white/15 hover:border-cyan-400/50 text-white/70 hover:text-white rounded-lg text-sm font-bold transition-all flex items-center justify-center backdrop-blur-sm"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
