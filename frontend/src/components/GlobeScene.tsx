@@ -38,14 +38,14 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
     targetContainer.appendChild(renderer.domElement);
 
     // ── 2. Lights ─────────────────────────────────────────────────────────────
-    const ambientLight = new THREE.AmbientLight(0x1a2b3c, 1.5);
+    const ambientLight = new THREE.AmbientLight(0x1a2b3c, 1.6);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0x00e5ff, 2.0);
+    const dirLight = new THREE.DirectionalLight(0x00f0ff, 2.2);
     dirLight.position.set(5, 3, 5);
     scene.add(dirLight);
 
-    const backLight = new THREE.DirectionalLight(0x006699, 1.2);
+    const backLight = new THREE.DirectionalLight(0x005588, 1.4);
     backLight.position.set(-5, -3, -5);
     scene.add(backLight);
 
@@ -62,12 +62,12 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
     const ctx = textureCanvas.getContext("2d");
 
     if (ctx) {
-      // Dark ocean background
-      ctx.fillStyle = "#070c14";
+      // Deep dark navy/black ocean background
+      ctx.fillStyle = "#050811";
       ctx.fillRect(0, 0, 1024, 512);
 
       // Subtle longitude & latitude grid lines
-      ctx.strokeStyle = "rgba(0, 229, 255, 0.08)";
+      ctx.strokeStyle = "rgba(0, 240, 255, 0.09)";
       ctx.lineWidth = 1;
 
       for (let x = 0; x <= 1024; x += 64) {
@@ -84,14 +84,14 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
       }
 
       // Stylized continent landmass dots
-      ctx.fillStyle = "#162436";
-      for (let i = 0; i < 4000; i++) {
+      ctx.fillStyle = "#121d2d";
+      for (let i = 0; i < 4500; i++) {
         const x = Math.random() * 1024;
         const y = Math.random() * 512;
         // Simple land distribution clustering
         if (
-          (y > 80 && y < 380 && (x < 350 || (x > 450 && x < 850))) ||
-          (y > 300 && y < 450 && x > 250 && x < 400)
+          (y > 70 && y < 390 && (x < 360 || (x > 440 && x < 860))) ||
+          (y > 290 && y < 460 && x > 240 && x < 410)
         ) {
           ctx.beginPath();
           ctx.arc(x, y, Math.random() * 2.5 + 1, 0, Math.PI * 2);
@@ -100,12 +100,12 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
       }
 
       // City light points in electric cyan
-      ctx.fillStyle = "#00e5ff";
-      for (let i = 0; i < 150; i++) {
+      ctx.fillStyle = "#00f0ff";
+      for (let i = 0; i < 200; i++) {
         const x = Math.random() * 1024;
         const y = Math.random() * 512;
         if (
-          (y > 100 && y < 350 && (x < 320 || (x > 480 && x < 820)))
+          (y > 90 && y < 360 && (x < 330 || (x > 470 && x < 840)))
         ) {
           ctx.beginPath();
           ctx.arc(x, y, 1.2, 0, Math.PI * 2);
@@ -118,8 +118,8 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
     const globeGeometry = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
     const globeMaterial = new THREE.MeshStandardMaterial({
       map: earthTexture,
-      roughness: 0.7,
-      metalness: 0.1,
+      roughness: 0.65,
+      metalness: 0.15,
     });
 
     const globeMesh = new THREE.Mesh(globeGeometry, globeMaterial);
@@ -138,8 +138,8 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
       fragmentShader: `
         varying vec3 vNormal;
         void main() {
-          float intensity = pow(0.65 - dot(vNormal, vec3(0, 0, 1.0)), 2.0);
-          gl_FragColor = vec4(0.0, 0.9, 1.0, 1.0) * intensity * 0.45;
+          float intensity = pow(0.68 - dot(vNormal, vec3(0, 0, 1.0)), 2.2);
+          gl_FragColor = vec4(0.0, 0.94, 1.0, 1.0) * intensity * 0.5;
         }
       `,
       blending: THREE.AdditiveBlending,
@@ -150,7 +150,7 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
     const atmosphereMesh = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
     globeGroup.add(atmosphereMesh);
 
-    // ── 5. Country Markers ────────────────────────────────────────────────────
+    // ── 5. Country Markers & Network Arcs ─────────────────────────────────────
     const markersGroup = new THREE.Group();
     globeGroup.add(markersGroup);
 
@@ -161,18 +161,18 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
 
       // Marker Dot
       const markerGeom = new THREE.SphereGeometry(0.045, 16, 16);
-      const markerMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
+      const markerMat = new THREE.MeshBasicMaterial({ color: 0x00f0ff });
       const markerMesh = new THREE.Mesh(markerGeom, markerMat);
       markerMesh.position.set(x, y, z);
       markersGroup.add(markerMesh);
 
       // Pulsing outer ring
-      const ringGeom = new THREE.RingGeometry(0.06, 0.08, 24);
+      const ringGeom = new THREE.RingGeometry(0.06, 0.085, 24);
       const ringMat = new THREE.MeshBasicMaterial({
-        color: 0x00e5ff,
+        color: 0x00f0ff,
         side: THREE.DoubleSide,
         transparent: true,
-        opacity: 0.6,
+        opacity: 0.65,
       });
       const ringMesh = new THREE.Mesh(ringGeom, ringMat);
       ringMesh.position.set(x, y, z);
@@ -180,6 +180,41 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
       markersGroup.add(ringMesh);
 
       markerMeshes.push({ mesh: markerMesh, country });
+    });
+
+    // Network Arcs between pairs of countries
+    const arcPairs = [
+      [0, 1], // India <-> US
+      [0, 2], // India <-> UK
+      [1, 4], // US <-> Japan
+      [2, 3], // UK <-> Germany
+      [3, 8], // Germany <-> France
+      [1, 7], // US <-> Canada
+      [0, 10], // India <-> Singapore
+      [4, 9], // Japan <-> South Korea
+    ];
+
+    arcPairs.forEach(([i, j]) => {
+      if (!COUNTRIES[i] || !COUNTRIES[j]) return;
+      const startVec = new THREE.Vector3(...latLngToVector3(COUNTRIES[i].lat, COUNTRIES[i].lng, GLOBE_RADIUS));
+      const endVec = new THREE.Vector3(...latLngToVector3(COUNTRIES[j].lat, COUNTRIES[j].lng, GLOBE_RADIUS));
+
+      const midVec = startVec.clone().add(endVec).multiplyScalar(0.5);
+      const distance = startVec.distanceTo(endVec);
+      midVec.setLength(GLOBE_RADIUS + distance * 0.25);
+
+      const curve = new THREE.QuadraticBezierCurve3(startVec, midVec, endVec);
+      const points = curve.getPoints(32);
+      const curveGeom = new THREE.BufferGeometry().setFromPoints(points);
+
+      const curveMat = new THREE.LineBasicMaterial({
+        color: 0x00f0ff,
+        transparent: true,
+        opacity: 0.35,
+      });
+
+      const arcLine = new THREE.Line(curveGeom, curveMat);
+      markersGroup.add(arcLine);
     });
 
     // ── 6. Pointer & Raycasting ───────────────────────────────────────────────
@@ -352,12 +387,12 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
   }, [onCountrySelect]);
 
   return (
-    <div className={`relative w-full h-full min-h-[300px] ${className}`}>
-      <div ref={containerRef} className="w-full h-full min-h-[300px] touch-none cursor-grab" />
+    <div className={`relative w-full h-full min-h-[340px] ${className}`}>
+      <div ref={containerRef} className="w-full h-full min-h-[340px] touch-none cursor-grab" />
 
       {/* Hover & Active Country Tooltip Overlay */}
       {hoveredCountry && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-[var(--veil-surface)]/90 border border-[var(--veil-cyan)]/50 backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-semibold text-white flex items-center gap-2 shadow-lg pointer-events-none z-10 animate-in fade-in duration-150">
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-[var(--veil-surface)]/95 border border-[var(--veil-cyan)]/60 backdrop-blur-md px-4 py-2 rounded-full text-xs font-semibold text-white flex items-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.2)] pointer-events-none z-10 animate-in fade-in duration-150">
           <span className="w-2 h-2 rounded-full bg-[var(--veil-cyan)] animate-ping" />
           <span>{hoveredCountry.name} ({hoveredCountry.isoCode})</span>
           {hoveredCountry.activeUsers && (
@@ -369,7 +404,7 @@ export default function GlobeScene({ onCountrySelect, className = "" }: GlobeSce
       )}
 
       {selectedCountry && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-[var(--veil-surface-2)]/90 border border-[var(--veil-cyan)]/60 backdrop-blur-md px-4 py-2 rounded-2xl text-xs text-center text-white shadow-xl pointer-events-none z-10">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[var(--veil-surface-2)]/95 border border-[var(--veil-cyan)]/60 backdrop-blur-md px-5 py-2.5 rounded-2xl text-xs text-center text-white shadow-2xl pointer-events-none z-10">
           <span className="font-bold text-[var(--veil-cyan)]">{selectedCountry.name} Selected</span>
           <p className="text-[11px] text-[var(--veil-text-muted)] mt-0.5">
             Connecting to anonymous peers in {selectedCountry.region}...

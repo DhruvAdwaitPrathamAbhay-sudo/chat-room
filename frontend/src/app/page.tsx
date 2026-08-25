@@ -54,35 +54,35 @@ function ClearAllRoomsModal({ onClose }: { onClose: () => void }) {
   return (
     /* Backdrop */
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       aria-modal="true"
       role="dialog"
       aria-label="Clear All Rooms"
     >
-      <div className="w-[calc(100%-24px)] max-w-sm mx-auto bg-[var(--veil-surface)] border border-red-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl overflow-hidden">
+      <div className="w-[calc(100%-24px)] max-w-sm mx-auto bg-[var(--veil-surface)] border border-red-500/30 rounded-3xl p-6 sm:p-7 shadow-2xl overflow-hidden">
 
         {step === "confirm" && (
           <>
-            <div className="flex items-center gap-3 mb-3.5">
+            <div className="flex items-center gap-3 mb-4">
               <span className="text-2xl">⚠️</span>
               <h2 className="text-lg font-bold text-white leading-snug">Clear all rooms?</h2>
             </div>
-            <p className="text-sm text-[var(--veil-text-muted)] leading-relaxed mb-5 break-words">
+            <p className="text-sm text-[var(--veil-text-muted)] leading-relaxed mb-6 break-words">
               This will <strong className="text-red-400">permanently delete</strong> all active
               rooms, memberships, chat history, real names, anonymous identities, and moderation
               data. <strong className="text-white">This cannot be undone.</strong>
             </p>
-            <div className="flex gap-2.5">
+            <div className="flex gap-3">
               <button
                 onClick={onClose}
-                className="flex-1 py-3 rounded-xl border border-[var(--veil-border)] text-[var(--veil-text-muted)] hover:text-white hover:border-white/30 transition-colors text-sm font-medium min-h-[44px]"
+                className="flex-1 py-3.5 rounded-xl border border-[var(--veil-border)] text-[var(--veil-text-muted)] hover:text-white hover:border-white/30 transition-colors text-sm font-medium min-h-[48px]"
               >
                 Cancel
               </button>
               <button
                 onClick={() => setStep("key")}
-                className="flex-1 py-3 rounded-xl bg-red-600/20 border border-red-500/50 text-red-400 hover:bg-red-600/30 hover:text-red-300 transition-colors text-sm font-semibold min-h-[44px]"
+                className="flex-1 py-3.5 rounded-xl bg-red-600/20 border border-red-500/50 text-red-400 hover:bg-red-600/30 hover:text-red-300 transition-colors text-sm font-semibold min-h-[48px]"
               >
                 Continue
               </button>
@@ -98,7 +98,7 @@ function ClearAllRoomsModal({ onClose }: { onClose: () => void }) {
             </div>
 
             {error && (
-              <div className="mb-4 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm break-words">
+              <div className="mb-4 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm break-words">
                 {error}
               </div>
             )}
@@ -118,23 +118,23 @@ function ClearAllRoomsModal({ onClose }: { onClose: () => void }) {
                   value={adminKey}
                   onChange={(e) => setAdminKey(e.target.value)}
                   placeholder="Enter your global admin key"
-                  className="w-full bg-[var(--veil-surface-2)] border border-[var(--veil-border)] text-white placeholder-[var(--veil-text-muted)] rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-red-500/60 focus:ring-1 focus:ring-red-500/30 transition-all min-h-[46px]"
+                  className="w-full bg-[var(--veil-surface-2)] border border-[var(--veil-border)] text-white placeholder-[var(--veil-text-muted)] rounded-xl px-4 py-3.5 text-sm focus:outline-none focus:border-red-500/60 focus:ring-1 focus:ring-red-500/30 transition-all min-h-[48px]"
                   required
                 />
               </div>
 
-              <div className="flex gap-2.5 pt-1">
+              <div className="flex gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => { setStep("confirm"); setError(""); setAdminKey(""); }}
-                  className="flex-1 py-3 rounded-xl border border-[var(--veil-border)] text-[var(--veil-text-muted)] hover:text-white hover:border-white/30 transition-colors text-sm font-medium min-h-[44px]"
+                  className="flex-1 py-3.5 rounded-xl border border-[var(--veil-border)] text-[var(--veil-text-muted)] hover:text-white hover:border-white/30 transition-colors text-sm font-medium min-h-[48px]"
                 >
                   Back
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors min-h-[44px]"
+                  className="flex-1 py-3.5 rounded-xl bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold transition-colors min-h-[48px]"
                 >
                   {loading ? "Clearing…" : "Clear All Rooms"}
                 </button>
@@ -144,8 +144,8 @@ function ClearAllRoomsModal({ onClose }: { onClose: () => void }) {
         )}
 
         {step === "success" && (
-          <div className="text-center py-2">
-            <div className="text-4xl mb-3">✓</div>
+          <div className="text-center py-4">
+            <div className="text-4xl mb-3 text-emerald-400">✓</div>
             <h2 className="text-lg font-bold text-white mb-2">Rooms cleared</h2>
             <p className="text-[var(--veil-text-muted)] text-sm break-words">
               {deletedCount === 0
@@ -166,98 +166,152 @@ export default function LandingPage() {
   const [selectedCountry, setSelectedCountry] = useState<CountryData | null>(null);
 
   return (
-    <main className="min-h-dvh bg-[var(--veil-bg)] flex flex-col justify-between max-w-lg mx-auto border-x border-[var(--veil-border)]/40 shadow-2xl overflow-x-hidden">
-      <div className="flex flex-col flex-1">
-        {/* ── Header ─────────────────────────────────────────────────────── */}
-        <header className="flex items-center justify-between px-5 pt-6 pb-2">
-          <div className="flex items-center gap-2">
-            <EyeSlashIcon className="text-[var(--veil-cyan)] w-7 h-7" />
-            <span className="text-[var(--veil-cyan)] font-bold text-2xl tracking-tight">
+    <main className="min-h-dvh bg-[#080808] text-white flex flex-col justify-between overflow-x-hidden w-full selection:bg-[var(--veil-cyan)] selection:text-black">
+      <div className="flex flex-col flex-1 w-full">
+        {/* ── Top Navigation Bar ─────────────────────────────────────────── */}
+        <header className="w-full max-w-7xl mx-auto px-5 sm:px-8 pt-6 pb-4 flex items-center justify-between z-20">
+          <Link href="/" className="flex items-center gap-2.5 group no-underline">
+            <div className="p-2 rounded-2xl bg-[var(--veil-cyan)]/10 border border-[var(--veil-cyan)]/30 group-hover:border-[var(--veil-cyan)]/60 transition-colors">
+              <EyeSlashIcon className="text-[var(--veil-cyan)] w-6 h-6 sm:w-7 sm:h-7" />
+            </div>
+            <span className="text-[var(--veil-cyan)] font-extrabold text-2xl tracking-tight">
               Veil
             </span>
-          </div>
+          </Link>
           <button
-            aria-label="People"
-            className="text-[var(--veil-text-muted)] hover:text-white transition-colors p-2 -mr-1"
+            aria-label="People network"
+            className="text-[var(--veil-text-muted)] hover:text-white transition-colors p-2.5 rounded-2xl bg-[var(--veil-surface)] border border-[var(--veil-border)] hover:border-white/20"
           >
-            <PeopleIcon className="w-6 h-6" />
+            <PeopleIcon className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         </header>
 
-        {/* ── Hero ───────────────────────────────────────────────────────── */}
-        <section className="px-5 sm:px-6 pt-6 sm:pt-8 pb-5 page-in">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight text-white tracking-tight">
-            Talk freely.{" "}
-            <span className="text-[var(--veil-cyan)] block mt-1">
-              Reveal selectively.
-            </span>
-          </h1>
-          <p className="mt-3.5 text-[var(--veil-text-muted)] text-sm sm:text-base leading-relaxed max-w-xs">
-            Connect in anonymous spaces. Build trust. Reveal your identity only
-            when you&apos;re ready.
-          </p>
-        </section>
+        {/* ── Integrated Hero Experience ──────────────────────────────────── */}
+        <section className="w-full max-w-7xl mx-auto px-5 sm:px-8 py-4 sm:py-8 lg:py-12 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center min-h-[calc(100vh-100px)]">
+          {/* Left Column: Hero Copy & Action CTAs */}
+          <div className="lg:col-span-6 xl:col-span-5 flex flex-col justify-center page-in">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--veil-surface-2)] border border-[var(--veil-cyan)]/30 text-xs font-semibold text-[var(--veil-cyan)] w-fit mb-6 shadow-[0_0_15px_rgba(0,240,255,0.1)]">
+              <span className="w-2 h-2 rounded-full bg-[var(--veil-cyan)] animate-pulse" />
+              <span>Real-Time Anonymous Spaces</span>
+            </div>
 
-        {/* ── CTA Buttons ────────────────────────────────────────────────── */}
-        <section className="px-5 flex flex-col gap-3 pb-6 page-in" style={{ animationDelay: "40ms" }}>
-          <Link
-            href="/create"
-            className="veil-btn-primary text-center no-underline"
-          >
-            Create a Room
-          </Link>
-          <Link
-            href="/join"
-            className="veil-btn-secondary text-center no-underline"
-          >
-            Join as Member
-          </Link>
-          <Link
-            href="/admin"
-            className="veil-btn-secondary text-center no-underline"
-          >
-            <CrownIcon className="text-[var(--veil-cyan)]" />
-            Join as Admin
-          </Link>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold leading-[1.1] text-white tracking-tight">
+              Talk freely.<br />
+              <span className="text-[var(--veil-cyan)] block mt-1">
+                Reveal selectively.
+              </span>
+            </h1>
 
-          {/* Admin — destructive action, visually distinct from normal CTAs */}
-          <button
-            id="clear-all-rooms-btn"
-            onClick={() => setShowClearModal(true)}
-            className="mt-1 w-full py-3.5 px-4 rounded-2xl border border-red-500/30 bg-red-500/5 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 transition-all text-sm font-semibold flex items-center justify-center gap-2 min-h-[48px] touch-manipulation"
-            aria-label="Clear all rooms (Global Admin)"
-          >
-            <span className="text-base">⚠</span> Clear All Rooms
-          </button>
-        </section>
+            <p className="mt-4 sm:mt-5 text-[var(--veil-text-muted)] text-base sm:text-lg leading-relaxed max-w-md">
+              Connect in anonymous spaces. Build trust. Reveal your identity only
+              when you&apos;re ready.
+            </p>
 
-        {/* ── Interactive 3D WebGL Earth Section ───────────────────────────── */}
-        <section
-          className="mx-5 p-2 text-center page-in mb-6 flex flex-col items-center"
-          style={{ animationDelay: "80ms" }}
-        >
-          <h2 className="text-lg sm:text-xl font-bold text-white mb-1">
-            Global Anonymous Network
-          </h2>
-          <p className="text-[var(--veil-text-muted)] text-xs sm:text-sm leading-relaxed mb-3 max-w-xs">
-            Connecting anonymous people worldwide. Drag to rotate or click a region.
-          </p>
+            {/* Main Action Buttons */}
+            <div className="mt-8 flex flex-col gap-3.5 max-w-md w-full">
+              <Link
+                href="/create"
+                className="veil-btn-primary text-center no-underline text-base font-bold py-4 rounded-2xl shadow-[0_0_25px_rgba(0,240,255,0.25)] hover:shadow-[0_0_35px_rgba(0,240,255,0.4)] transition-all"
+              >
+                Create a Room
+              </Link>
+              <Link
+                href="/join"
+                className="veil-btn-secondary text-center no-underline text-base font-semibold py-4 rounded-2xl"
+              >
+                Join as Member
+              </Link>
+              <Link
+                href="/admin"
+                className="veil-btn-secondary text-center no-underline text-base font-semibold py-4 rounded-2xl flex items-center justify-center gap-2"
+              >
+                <CrownIcon className="text-[var(--veil-cyan)] w-5 h-5" />
+                Join as Admin
+              </Link>
 
-          <div className="w-full flex justify-center">
-            <InteractiveGlobe onCountrySelect={(country) => setSelectedCountry(country)} />
+              {/* Admin — Destructive action */}
+              <button
+                id="clear-all-rooms-btn"
+                onClick={() => setShowClearModal(true)}
+                className="mt-1 w-full py-3.5 px-4 rounded-2xl border border-red-500/30 bg-red-500/5 text-red-400 hover:bg-red-500/10 hover:border-red-500/50 transition-all text-sm font-semibold flex items-center justify-center gap-2 min-h-[48px] touch-manipulation"
+                aria-label="Clear all rooms (Global Admin)"
+              >
+                <span className="text-base">⚠</span> Clear All Rooms
+              </button>
+            </div>
           </div>
 
-          {selectedCountry && (
-            <p className="mt-2 text-[var(--veil-cyan)] text-xs font-medium animate-pulse">
-              Selected Region: {selectedCountry.name} ({selectedCountry.isoCode})
+          {/* Right Column: 3D Interactive WebGL Globe Visual */}
+          <div className="lg:col-span-6 xl:col-span-7 flex flex-col items-center justify-center relative page-in" style={{ animationDelay: "60ms" }}>
+            <div className="w-full relative">
+              <InteractiveGlobe onCountrySelect={(country) => setSelectedCountry(country)} />
+            </div>
+
+            {selectedCountry && (
+              <div className="mt-2 px-4 py-1.5 rounded-full bg-[var(--veil-surface-2)] border border-[var(--veil-cyan)]/50 text-xs font-semibold text-[var(--veil-cyan)] animate-pulse">
+                Region Selected: {selectedCountry.name} ({selectedCountry.isoCode})
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ── Below Hero: Protocol Breakdown ─────────────────────────────── */}
+        <section className="w-full max-w-7xl mx-auto px-5 sm:px-8 py-16 sm:py-24 border-t border-[var(--veil-border)]/50">
+          <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
+            <span className="text-xs font-bold tracking-widest text-[var(--veil-cyan)] uppercase">
+              The Veil Protocol
+            </span>
+            <h2 className="text-2xl sm:text-4xl font-extrabold text-white mt-2">
+              Global Anonymous Communication
+            </h2>
+            <p className="text-[var(--veil-text-muted)] text-sm sm:text-base mt-3">
+              People connecting worldwide without exposing who they are.
             </p>
-          )}
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+            <div className="veil-card p-6 sm:p-8 flex flex-col justify-between hover:border-[var(--veil-cyan)]/40 transition-all">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--veil-cyan)]/10 border border-[var(--veil-cyan)]/30 flex items-center justify-center text-[var(--veil-cyan)] font-bold text-lg mb-6">
+                01
+              </div>
+              <div>
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-2">TALK FREELY</h3>
+                <p className="text-[var(--veil-text-muted)] text-sm leading-relaxed">
+                  Anonymous identity lets people participate in discussions without immediately exposing personal identity.
+                </p>
+              </div>
+            </div>
+
+            <div className="veil-card p-6 sm:p-8 flex flex-col justify-between hover:border-[var(--veil-cyan)]/40 transition-all">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--veil-cyan)]/10 border border-[var(--veil-cyan)]/30 flex items-center justify-center text-[var(--veil-cyan)] font-bold text-lg mb-6">
+                02
+              </div>
+              <div>
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-2">BUILD TRUST</h3>
+                <p className="text-[var(--veil-text-muted)] text-sm leading-relaxed">
+                  Communicate in structured, secure rooms with active real-time moderation and room level protection.
+                </p>
+              </div>
+            </div>
+
+            <div className="veil-card p-6 sm:p-8 flex flex-col justify-between hover:border-[var(--veil-cyan)]/40 transition-all">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--veil-cyan)]/10 border border-[var(--veil-cyan)]/30 flex items-center justify-center text-[var(--veil-cyan)] font-bold text-lg mb-6">
+                03
+              </div>
+              <div>
+                <h3 className="text-lg sm:text-xl font-bold text-white mb-2">REVEAL SELECTIVELY</h3>
+                <p className="text-[var(--veil-text-muted)] text-sm leading-relaxed">
+                  Identity reveal remains strictly controlled by authorized room admins when readiness is established.
+                </p>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
 
-      {/* ── Bottom Nav ─────────────────────────────────────────────────── */}
+      {/* ── Mobile Bottom Nav ──────────────────────────────────────────────── */}
       <nav
-        className="bottom-nav mt-auto flex items-center justify-around py-3 px-4"
+        className="bottom-nav mt-auto flex md:hidden items-center justify-around py-3 px-4 bg-[#0a0a0a]/90 backdrop-blur-lg border-t border-[var(--veil-border)]/50 z-20"
         aria-label="Main navigation"
       >
         <NavItem icon={<ChatIcon />} label="Chat" active />

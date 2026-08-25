@@ -38,7 +38,7 @@ export default function InteractiveGlobe({ onCountrySelect, className = "" }: In
   }
 
   return (
-    <div className={`relative w-full h-[320px] sm:h-[380px] md:h-[440px] max-w-lg mx-auto flex items-center justify-center ${className}`}>
+    <div className={`relative w-full h-[360px] sm:h-[440px] md:h-[520px] lg:h-[620px] xl:h-[680px] flex items-center justify-center ${className}`}>
       <GlobeScene onCountrySelect={onCountrySelect} />
     </div>
   );
@@ -46,11 +46,11 @@ export default function InteractiveGlobe({ onCountrySelect, className = "" }: In
 
 function GlobeFallback() {
   return (
-    <div className="w-full h-[320px] sm:h-[380px] max-w-lg mx-auto flex flex-col items-center justify-center">
-      <div className="w-32 h-32 sm:w-40 sm:h-40 rounded-full bg-gradient-to-tr from-[#070c14] via-[#162436] to-[var(--veil-cyan)]/20 border-2 border-[var(--veil-cyan)]/40 flex items-center justify-center shadow-[0_0_30px_rgba(0,229,255,0.15)] animate-pulse">
-        <FingerprintIcon className="text-[var(--veil-cyan)] w-12 h-12" />
+    <div className="w-full h-[360px] sm:h-[440px] flex flex-col items-center justify-center">
+      <div className="w-36 h-36 sm:w-48 sm:h-48 rounded-full bg-gradient-to-tr from-[#050811] via-[#121d2d] to-[var(--veil-cyan)]/20 border-2 border-[var(--veil-cyan)]/40 flex items-center justify-center shadow-[0_0_40px_rgba(0,240,255,0.2)] animate-pulse">
+        <FingerprintIcon className="text-[var(--veil-cyan)] w-14 h-14" />
       </div>
-      <p className="mt-3 text-xs text-[var(--veil-text-muted)] font-medium">
+      <p className="mt-4 text-xs text-[var(--veil-text-muted)] font-medium">
         Connecting to global anonymous spaces...
       </p>
     </div>
