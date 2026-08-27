@@ -63,6 +63,49 @@ export function getIo(): Server {
 const socketRoomMap = new Map<string, SocketContext>();
 
 /**
+ * Returns the authoritative live presence for a room.
+ * Uses connected Socket.IO sockets in room:${roomId} and deduplicates unique members.
+ */
+export function getRoomOnlinePresence(io: Server, roomId: string): {
+  onlineCount: number;
+  onlineMemberIds: string[];
+} {
+  const socketRoomId = `room:${roomId}`;
+  const socketSet = io.sockets.adapter.rooms.get(socketRoomId);
+  if (!socketSet || socketSet.size === 0) {
+    return { onlineCount: 0, onlineMemberIds: [] };
+  }
+
+  const memberIdSet = new Set<string>();
+  for (const socketId of socketSet) {
+    const ctx = socketRoomMap.get(socketId);
+    if (ctx?.membershipId) {
+      memberIdSet.add(ctx.membershipId);
+    }
+  }
+
+  const onlineCount = memberIdSet.size > 0 ? memberIdSet.size : socketSet.size;
+  return {
+    onlineCount,
+    onlineMemberIds: Array.from(memberIdSet),
+  };
+}
+
+/**
+ * Broadcasts the live presence update to all sockets in room:${roomId}.
+ */
+export function broadcastRoomPresence(io: Server, roomId: string, roomCode?: string): void {
+  const socketRoomId = `room:${roomId}`;
+  const presence = getRoomOnlinePresence(io, roomId);
+  io.to(socketRoomId).emit('room.presence', {
+    roomId,
+    roomCode,
+    onlineCount: presence.onlineCount,
+    onlineMemberIds: presence.onlineMemberIds,
+  });
+}
+
+/**
  * roomId → pending deletion timer.
  * Only one timer may exist per room at a time.
  */
@@ -280,6 +323,8 @@ export function setupSocket(io: Server): void {
         socket.data.role = membership.role;
         socket.data.anonName = membership.anonymousName;
 
+        const presence = getRoomOnlinePresence(io, room.id);
+
         socket.emit('room.joined', {
           roomCode: room.roomCode,
           membership: {
@@ -287,6 +332,8 @@ export function setupSocket(io: Server): void {
             displayName: membership.anonymousName,
             role: membership.role,
           },
+          onlineCount: presence.onlineCount,
+          onlineMemberIds: presence.onlineMemberIds,
         });
 
         socket.to(socketRoomId).emit('member.joined', {
@@ -296,6 +343,8 @@ export function setupSocket(io: Server): void {
             avatar: membership.anonymousAvatar,
           },
         });
+
+        broadcastRoomPresence(io, room.id, room.roomCode);
       } catch (err) {
         console.error('[Socket] room.join error:', err instanceof Error ? err.message : err);
         socket.emit('room.join.failed', { code: 'ERROR', message: 'Failed to join room.' });
@@ -678,12 +727,13 @@ async function handleLeave(io: Server, socket: Socket, isDisconnect: boolean): P
   // Notify remaining members
   io.to(socketRoomId).emit('member.left', { memberId: membershipId });
 
-  // Count currently online members (sockets in the room namespace)
-  const roomSockets = io.sockets.adapter.rooms.get(socketRoomId);
-  const onlineCount = roomSockets ? roomSockets.size : 0;
+  // Broadcast authoritative live presence update
+  broadcastRoomPresence(io, roomId);
 
-  if (onlineCount === 0) {
-    // No sockets remain; check DB count and schedule deletion
+  const presence = getRoomOnlinePresence(io, roomId);
+
+  if (presence.onlineCount === 0) {
+    // No active sockets remain; schedule room deletion for private rooms
     const graceMs = isDisconnect ? RECONNECT_GRACE_MS : LEAVE_GRACE_MS;
     scheduleRoomDeletion(roomId, graceMs);
   }

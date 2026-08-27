@@ -190,6 +190,7 @@ export interface GetRoomResponse {
     identityVisible: boolean;
     status: string;
   };
+  onlineCount?: number;
 }
 
 export async function getRoom(roomCode: string) {
@@ -205,10 +206,11 @@ export interface MemberViewItem {
   identityVisible: boolean;
   status: string;
   isCurrentUser: boolean;
+  isOnline?: boolean;
 }
 
 export async function getMembers(roomCode: string) {
-  return request<{ members: MemberViewItem[] }>(`/rooms/${roomCode}/members`);
+  return request<{ members: MemberViewItem[]; onlineCount?: number }>(`/rooms/${roomCode}/members`);
 }
 
 export interface MessageItem {

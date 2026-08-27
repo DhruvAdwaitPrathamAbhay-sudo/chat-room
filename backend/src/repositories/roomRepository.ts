@@ -769,7 +769,8 @@ export async function getMessages(
   isEdited: boolean;
 }>> {
   let sql = `
-    SELECT m.id, m.content, m.created_at, m.updated_at, m.sender_id,
+    SELECT m.id, m.content, m.created_at, m.updated_at,
+           rm.id as membership_id, m.sender_id as user_id,
            rm.anonymous_name, rm.identity_visible,
            u.name as real_name,
            (m.updated_at > m.created_at + interval '100 milliseconds') as is_edited
@@ -794,7 +795,7 @@ export async function getMessages(
     .map((row) => ({
       id: row.id as string,
       content: row.content as string,
-      senderId: row.sender_id as string,
+      senderId: (row.membership_id ?? row.user_id) as string,
       displayName: row.identity_visible
         ? (row.real_name as string)
         : (row.anonymous_name as string),

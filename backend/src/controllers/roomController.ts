@@ -271,6 +271,15 @@ export async function getRoomHandler(req: Request, res: Response): Promise<void>
     return;
   }
 
+  let onlineCount = 0;
+  try {
+    const { getIo, getRoomOnlinePresence } = await import('../socket');
+    const presence = getRoomOnlinePresence(getIo(), room.id);
+    onlineCount = presence.onlineCount;
+  } catch {
+    // Socket not yet initialized
+  }
+
   res.json({
     success: true,
     data: {
@@ -290,6 +299,7 @@ export async function getRoomHandler(req: Request, res: Response): Promise<void>
         identityVisible: membership.identityVisible,
         status: membership.status,
       },
+      onlineCount,
     },
   });
 }
@@ -307,12 +317,27 @@ export async function getMembersHandler(req: Request, res: Response): Promise<vo
     return;
   }
 
+  let onlineCount = 0;
+  let onlineMemberIds = new Set<string>();
+  try {
+    const { getIo, getRoomOnlinePresence } = await import('../socket');
+    const presence = getRoomOnlinePresence(getIo(), room.id);
+    onlineCount = presence.onlineCount;
+    onlineMemberIds = new Set(presence.onlineMemberIds);
+  } catch {
+    // Socket not yet initialized
+  }
+
   const isPublic = isOfficialPublicRoom(room.roomCode);
 
   // ── PUBLIC ROOM: Any visitor is permitted to see active members ──
   if (isPublic) {
-    const members = await getMembersForViewer(room.id, userId, false);
-    res.json({ success: true, data: { members } });
+    const rawMembers = await getMembersForViewer(room.id, userId, false);
+    const members = rawMembers.map((m) => ({
+      ...m,
+      isOnline: onlineMemberIds.has(m.id),
+    }));
+    res.json({ success: true, data: { members, onlineCount } });
     return;
   }
 
@@ -324,9 +349,13 @@ export async function getMembersHandler(req: Request, res: Response): Promise<vo
   }
 
   const isAdmin = viewerMembership.role === 'admin';
-  const members = await getMembersForViewer(room.id, userId, isAdmin);
+  const rawMembers = await getMembersForViewer(room.id, userId, isAdmin);
+  const members = rawMembers.map((m) => ({
+    ...m,
+    isOnline: onlineMemberIds.has(m.id),
+  }));
 
-  res.json({ success: true, data: { members } });
+  res.json({ success: true, data: { members, onlineCount } });
 }
 
 // ──────────────────────────────────────────────

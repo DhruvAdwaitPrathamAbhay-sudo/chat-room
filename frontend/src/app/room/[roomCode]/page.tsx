@@ -44,6 +44,7 @@ export default function RoomChatPage({
   const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
 
   const [members, setMembers] = useState<MemberViewItem[]>([]);
+  const [onlineCount, setOnlineCount] = useState<number>(1);
   const [messages, setMessages] = useState<ApiMessageItem[]>([]);
   const [typingMembers, setTypingMembers] = useState<Set<string>>(new Set());
   const [myMembershipId, setMyMembershipId] = useState<string | null>(null);
@@ -77,6 +78,9 @@ export default function RoomChatPage({
 
         setRoomName(roomRes.room.name);
         setMyMembershipId(roomRes.membership.id);
+        if (typeof roomRes.onlineCount === "number" && roomRes.onlineCount > 0) {
+          setOnlineCount(roomRes.onlineCount);
+        }
 
         const [messagesRes, membersRes] = await Promise.all([
           getMessages(roomCode),
@@ -87,6 +91,14 @@ export default function RoomChatPage({
 
         setMessages(messagesRes.messages);
         setMembers(membersRes.members);
+        if (typeof membersRes.onlineCount === "number" && membersRes.onlineCount > 0) {
+          setOnlineCount(membersRes.onlineCount);
+        }
+
+        const currentMember = membersRes.members.find((m) => m.isCurrentUser);
+        if (currentMember) {
+          setMyMembershipId(currentMember.id);
+        }
 
         // Join socket room
         socket.emit("room.join", { roomCode });
@@ -108,8 +120,34 @@ export default function RoomChatPage({
     const handleJoined = (data: {
       roomCode: string;
       membership: { id: string; displayName: string; role: string };
+      onlineCount?: number;
+      onlineMemberIds?: string[];
     }) => {
       if (data.membership) setMyMembershipId(data.membership.id);
+      if (typeof data.onlineCount === "number" && data.onlineCount > 0) {
+        setOnlineCount(data.onlineCount);
+      }
+      if (Array.isArray(data.onlineMemberIds)) {
+        const onlineSet = new Set(data.onlineMemberIds);
+        setMembers((prev) =>
+          prev.map((m) => ({ ...m, isOnline: onlineSet.has(m.id) }))
+        );
+      }
+    };
+
+    const handlePresence = (data: {
+      onlineCount: number;
+      onlineMemberIds?: string[];
+    }) => {
+      if (typeof data.onlineCount === "number") {
+        setOnlineCount(data.onlineCount);
+      }
+      if (Array.isArray(data.onlineMemberIds)) {
+        const onlineSet = new Set(data.onlineMemberIds);
+        setMembers((prev) =>
+          prev.map((m) => ({ ...m, isOnline: onlineSet.has(m.id) }))
+        );
+      }
     };
 
     const handleJoinFailed = (data: { code: string; message: string }) => {
@@ -226,6 +264,7 @@ export default function RoomChatPage({
     };
 
     socket.on("room.joined", handleJoined);
+    socket.on("room.presence", handlePresence);
     socket.on("room.join.failed", handleJoinFailed);
     socket.on("message.created", handleMessageCreated);
     socket.on("message.updated", handleMessageUpdated);
@@ -246,6 +285,7 @@ export default function RoomChatPage({
       isSubscribed = false;
       socket.emit("room.leave");
       socket.off("room.joined", handleJoined);
+      socket.off("room.presence", handlePresence);
       socket.off("room.join.failed", handleJoinFailed);
       socket.off("message.created", handleMessageCreated);
       socket.off("message.updated", handleMessageUpdated);
@@ -333,7 +373,7 @@ export default function RoomChatPage({
           <div className="flex items-center justify-center gap-1.5 mt-0.5">
             <span className="w-2 h-2 rounded-full bg-[var(--veil-cyan)] animate-pulse flex-shrink-0" />
             <span className="text-xs font-semibold text-[var(--veil-cyan)] truncate">
-              {members.length} Online ({roomCode})
+              {onlineCount} {onlineCount === 1 ? "Person" : "People"} Online ({roomCode})
             </span>
           </div>
         </div>
@@ -361,24 +401,41 @@ export default function RoomChatPage({
       {activeTab === "people" ? (
         /* ── People / Members Panel ──────────────────────────────────── */
         <div className="flex-1 p-4 sm:p-5 space-y-3 overflow-y-auto page-in w-full">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--veil-text-muted)] mb-3">
-            Active Room Participants ({members.length})
-          </h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[var(--veil-text-muted)]">
+              Participants ({members.length})
+            </h2>
+            <span className="text-xs font-semibold text-[var(--veil-cyan)] flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              {onlineCount} Online
+            </span>
+          </div>
           {members.map((m) => (
             <div
               key={m.id}
               className="flex items-center justify-between p-3.5 sm:p-4 rounded-xl bg-[var(--veil-surface)] border border-[var(--veil-border)] gap-2 min-w-0 w-full"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-[var(--veil-surface-2)] flex items-center justify-center border border-[var(--veil-border)] text-xs sm:text-sm font-semibold text-[var(--veil-cyan)] flex-shrink-0">
-                  {m.displayName.slice(0, 2)}
+                <div className="relative flex-shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-[var(--veil-surface-2)] flex items-center justify-center border border-[var(--veil-border)] text-xs sm:text-sm font-semibold text-[var(--veil-cyan)]">
+                    {m.displayName.slice(0, 2)}
+                  </div>
+                  <span
+                    className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[var(--veil-surface)] ${
+                      m.isOnline ? "bg-emerald-400" : "bg-gray-500"
+                    }`}
+                  />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs sm:text-sm font-semibold text-white truncate">
                     {m.displayName} {m.isCurrentUser && "(You)"}
                   </p>
-                  <p className="text-[11px] sm:text-xs text-[var(--veil-text-muted)]">
-                    Status: {m.status}
+                  <p className="text-[11px] sm:text-xs text-[var(--veil-text-muted)] flex items-center gap-1.5">
+                    {m.isOnline ? (
+                      <span className="text-emerald-400/90 font-medium">Online</span>
+                    ) : (
+                      <span>Offline · {m.status}</span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -407,7 +464,9 @@ export default function RoomChatPage({
             </div>
           ) : (
             messages.map((msg) => {
-              const isSelf = msg.senderId === myMembershipId;
+              const myMember = members.find((m) => m.isCurrentUser);
+              const currentMemId = myMembershipId || myMember?.id;
+              const isSelf = Boolean(currentMemId && msg.senderId === currentMemId);
               const isEditing = editingMessageId === msg.id;
               const isConfirmingDelete = deleteConfirmMessageId === msg.id;
               const isMenuOpen = activeMenuMessageId === msg.id;
