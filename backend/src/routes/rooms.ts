@@ -3,10 +3,13 @@ import { requireAuth, ensureAuth } from '../middleware/requireAuth';
 import {
   createRoomHandler,
   joinRoomHandler,
+  joinPublicRoomHandler,
   adminAccessHandler,
   getRoomHandler,
   getMembersHandler,
   getMessagesHandler,
+  updateMessageHandler,
+  deleteMessageHandler,
   revealIdentityHandler,
   hideIdentityHandler,
   muteMemberHandler,
@@ -22,15 +25,18 @@ const router = Router();
 // Room Creation & Joins auto-provision user session if absent
 router.post('/', ensureAuth, createRoomHandler);
 router.post('/join', ensureAuth, joinRoomHandler);
+router.post('/public/:slug/join', ensureAuth, joinPublicRoomHandler);
 router.post('/:roomCode/admin-access', ensureAuth, adminAccessHandler);
 
-// Protected room routes require existing active session
-router.get('/:roomCode', requireAuth, getRoomHandler);
+// Protected room routes (ensureAuth auto-creates anonymous session for new public guests)
+router.get('/:roomCode', ensureAuth, getRoomHandler);
 router.post('/:roomCode/close', requireAuth, closeRoomHandler);
 
 // Room data
-router.get('/:roomCode/members', requireAuth, getMembersHandler);
-router.get('/:roomCode/messages', requireAuth, getMessagesHandler);
+router.get('/:roomCode/members', ensureAuth, getMembersHandler);
+router.get('/:roomCode/messages', ensureAuth, getMessagesHandler);
+router.patch('/:roomCode/messages/:messageId', ensureAuth, updateMessageHandler);
+router.delete('/:roomCode/messages/:messageId', ensureAuth, deleteMessageHandler);
 
 // Identity management (admin only — verified in controller + DB)
 router.post('/:roomCode/members/:memberId/reveal', requireAuth, revealIdentityHandler);

@@ -38,6 +38,10 @@ export default function RoomChatPage({
   const [roomName, setRoomName] = useState("Loading room...");
   const [activeTab, setActiveTab] = useState<"chat" | "people">("chat");
   const [inputContent, setInputContent] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [deleteConfirmMessageId, setDeleteConfirmMessageId] = useState<string | null>(null);
+  const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
 
   const [members, setMembers] = useState<MemberViewItem[]>([]);
   const [messages, setMessages] = useState<ApiMessageItem[]>([]);
@@ -46,6 +50,14 @@ export default function RoomChatPage({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setActiveMenuMessageId(null);
+    };
+    window.addEventListener("click", handleOutsideClick);
+    return () => window.removeEventListener("click", handleOutsideClick);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,16 +72,19 @@ export default function RoomChatPage({
       try {
         setLoading(true);
 
-        const [roomRes, messagesRes, membersRes] = await Promise.all([
-          getRoom(roomCode),
+        const roomRes = await getRoom(roomCode);
+        if (!isSubscribed) return;
+
+        setRoomName(roomRes.room.name);
+        setMyMembershipId(roomRes.membership.id);
+
+        const [messagesRes, membersRes] = await Promise.all([
           getMessages(roomCode),
           getMembers(roomCode),
         ]);
 
         if (!isSubscribed) return;
 
-        setRoomName(roomRes.room.name);
-        setMyMembershipId(roomRes.membership.id);
         setMessages(messagesRes.messages);
         setMembers(membersRes.members);
 
@@ -108,6 +123,27 @@ export default function RoomChatPage({
           return [...prev, data.message];
         });
       }
+    };
+
+    const handleMessageUpdated = (data: {
+      messageId: string;
+      content: string;
+      isEdited?: boolean;
+    }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === data.messageId
+            ? { ...m, content: data.content, isEdited: true }
+            : m
+        )
+      );
+    };
+
+    const handleMessageDeleted = (data: { messageId: string }) => {
+      setMessages((prev) => prev.filter((m) => m.id !== data.messageId));
+      setEditingMessageId((cur) => (cur === data.messageId ? null : cur));
+      setDeleteConfirmMessageId((cur) => (cur === data.messageId ? null : cur));
+      setActiveMenuMessageId((cur) => (cur === data.messageId ? null : cur));
     };
 
     const handleMessageRejected = (data: { code: string; message: string }) => {
@@ -192,6 +228,8 @@ export default function RoomChatPage({
     socket.on("room.joined", handleJoined);
     socket.on("room.join.failed", handleJoinFailed);
     socket.on("message.created", handleMessageCreated);
+    socket.on("message.updated", handleMessageUpdated);
+    socket.on("message.deleted", handleMessageDeleted);
     socket.on("message.rejected", handleMessageRejected);
     socket.on("identity.revealed", handleIdentityRevealed);
     socket.on("identity.hidden", handleIdentityHidden);
@@ -210,6 +248,8 @@ export default function RoomChatPage({
       socket.off("room.joined", handleJoined);
       socket.off("room.join.failed", handleJoinFailed);
       socket.off("message.created", handleMessageCreated);
+      socket.off("message.updated", handleMessageUpdated);
+      socket.off("message.deleted", handleMessageDeleted);
       socket.off("message.rejected", handleMessageRejected);
       socket.off("identity.revealed", handleIdentityRevealed);
       socket.off("identity.hidden", handleIdentityHidden);
@@ -246,6 +286,21 @@ export default function RoomChatPage({
     socket.emit("message.send", { content });
     socket.emit("typing.stop");
     setInputContent("");
+  };
+
+  const handleSaveEdit = (messageId: string) => {
+    const trimmed = editContent.trim();
+    if (!trimmed) return;
+    const socket = connectSocket();
+    socket.emit("message.edit", { messageId, content: trimmed });
+    setEditingMessageId(null);
+    setEditContent("");
+  };
+
+  const handleConfirmDelete = (messageId: string) => {
+    const socket = connectSocket();
+    socket.emit("message.delete", { messageId });
+    setDeleteConfirmMessageId(null);
   };
 
   if (loading) {
@@ -353,6 +408,9 @@ export default function RoomChatPage({
           ) : (
             messages.map((msg) => {
               const isSelf = msg.senderId === myMembershipId;
+              const isEditing = editingMessageId === msg.id;
+              const isConfirmingDelete = deleteConfirmMessageId === msg.id;
+              const isMenuOpen = activeMenuMessageId === msg.id;
               const formattedTime = new Date(msg.createdAt).toLocaleTimeString(
                 [],
                 { hour: "2-digit", minute: "2-digit" }
@@ -361,13 +419,69 @@ export default function RoomChatPage({
               return (
                 <div
                   key={msg.id}
-                  className={`flex items-end gap-2 msg-in w-full ${
+                  className={`flex items-end gap-2 msg-in w-full group/msg ${
                     isSelf ? "justify-end" : "justify-start"
                   }`}
                 >
                   {!isSelf && (
                     <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[var(--veil-surface-2)] border border-[var(--veil-border)] flex items-center justify-center text-[var(--veil-text-muted)] text-xs flex-shrink-0 mb-0.5">
                       <EyeSlashIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--veil-text-muted)]" />
+                    </div>
+                  )}
+
+                  {/* Actions menu trigger for own messages */}
+                  {isSelf && !isEditing && !isConfirmingDelete && (
+                    <div className="relative flex-shrink-0 self-center">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveMenuMessageId(isMenuOpen ? null : msg.id);
+                        }}
+                        className="opacity-70 hover:opacity-100 sm:opacity-0 sm:group-hover/msg:opacity-100 p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-all min-w-[28px] min-h-[28px] flex items-center justify-center"
+                        title="Message options"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <circle cx="10" cy="4" r="1.5" />
+                          <circle cx="10" cy="10" r="1.5" />
+                          <circle cx="10" cy="16" r="1.5" />
+                        </svg>
+                      </button>
+
+                      {isMenuOpen && (
+                        <div
+                          className="absolute right-0 bottom-full mb-1 z-30 bg-[#1e1e1e] border border-[#383838] rounded-xl shadow-2xl py-1 min-w-[110px] text-xs page-in"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingMessageId(msg.id);
+                              setEditContent(msg.content);
+                              setActiveMenuMessageId(null);
+                            }}
+                            className="w-full px-3 py-1.5 text-left text-gray-200 hover:bg-white/10 hover:text-[var(--veil-cyan)] flex items-center gap-2 transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDeleteConfirmMessageId(msg.id);
+                              setActiveMenuMessageId(null);
+                            }}
+                            className="w-full px-3 py-1.5 text-left text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -383,24 +497,90 @@ export default function RoomChatPage({
                         {msg.displayName}
                       </p>
                     )}
-                    <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">
-                      {msg.content.split(/(@\w+)/g).map((part, i) =>
-                        part.startsWith("@") ? (
-                          <span
-                            key={i}
-                            className="text-[var(--veil-cyan)] font-semibold"
-                          >
-                            {part}
-                          </span>
-                        ) : (
-                          part
-                        )
-                      )}
-                    </p>
 
-                    <p className="text-[10px] text-[var(--veil-text-muted)] text-right pt-0.5">
-                      {formattedTime}
-                    </p>
+                    {isEditing ? (
+                      /* Inline Editor */
+                      <div className="space-y-2 w-full min-w-[200px] sm:min-w-[280px]" onClick={(e) => e.stopPropagation()}>
+                        <textarea
+                          value={editContent}
+                          onChange={(e) => setEditContent(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSaveEdit(msg.id);
+                            } else if (e.key === "Escape") {
+                              setEditingMessageId(null);
+                            }
+                          }}
+                          rows={2}
+                          className="w-full bg-[#161616] text-white text-xs sm:text-sm p-2.5 rounded-xl border border-[var(--veil-cyan)]/50 focus:outline-none focus:ring-1 focus:ring-[var(--veil-cyan)] resize-none"
+                          autoFocus
+                        />
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setEditingMessageId(null)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-400 hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEdit(msg.id)}
+                            disabled={!editContent.trim()}
+                            className="px-3 py-1 rounded-lg text-xs font-bold bg-[var(--veil-cyan)] text-black hover:bg-[var(--veil-cyan)]/80 transition-colors disabled:opacity-50"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : isConfirmingDelete ? (
+                      /* Delete Confirmation */
+                      <div className="space-y-2 w-full min-w-[180px]" onClick={(e) => e.stopPropagation()}>
+                        <p className="text-xs text-red-300 font-medium">Delete this message?</p>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteConfirmMessageId(null)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold text-gray-400 hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleConfirmDelete(msg.id)}
+                            className="px-3 py-1 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-500 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Message Content */
+                      <p className="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words overflow-wrap-anywhere">
+                        {msg.content.split(/(@\w+)/g).map((part, i) =>
+                          part.startsWith("@") ? (
+                            <span
+                              key={i}
+                              className="text-[var(--veil-cyan)] font-semibold"
+                            >
+                              {part}
+                            </span>
+                          ) : (
+                            part
+                          )
+                        )}
+                      </p>
+                    )}
+
+                    {!isEditing && !isConfirmingDelete && (
+                      <p className="text-[10px] text-[var(--veil-text-muted)] text-right pt-0.5 flex items-center justify-end gap-1">
+                        <span>{formattedTime}</span>
+                        {msg.isEdited && (
+                          <span className="italic opacity-80 text-[var(--veil-cyan)]/90">· Edited</span>
+                        )}
+                      </p>
+                    )}
                   </div>
 
                   {isSelf && (

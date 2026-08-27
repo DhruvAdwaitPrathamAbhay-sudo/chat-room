@@ -19,6 +19,7 @@ export interface Message {
   /** membership id — not user id */
   senderId: string;
   createdAt: string;
+  isEdited?: boolean;
 }
 
 export interface Room {

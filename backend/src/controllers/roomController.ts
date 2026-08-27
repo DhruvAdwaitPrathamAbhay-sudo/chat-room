@@ -3,12 +3,17 @@ import { verifyGlobalAdminKey } from '../utils/adminAuth';
 import {
   createRoom,
   joinRoomAsMember,
+  joinPublicRoom,
+  isOfficialPublicRoom,
   authenticateAdmin,
   findRoomByCode,
   findRoomByName,
   findMembershipById,
   getMembersForViewer,
   getMessages,
+  findMessageById,
+  updateMessage,
+  deleteMessage,
   setIdentityVisible,
   updateMemberStatus,
   closeRoom,
@@ -206,6 +211,41 @@ export async function adminAccessHandler(req: Request, res: Response): Promise<v
 }
 
 // ──────────────────────────────────────────────
+// POST /api/rooms/public/:slug/join — Join Public Room (Guest)
+// ──────────────────────────────────────────────
+export async function joinPublicRoomHandler(req: Request, res: Response): Promise<void> {
+  const rawParam = req.params.slug || req.body?.slug || req.body?.roomCode;
+  const slug = getParam(rawParam || '');
+  const userId = req.sessionUser!.userId;
+
+  if (!slug || !isOfficialPublicRoom(slug)) {
+    res.status(404).json({ success: false, error: { code: 'ROOM_NOT_FOUND', message: 'Public room not found.' } });
+    return;
+  }
+
+  const result = await joinPublicRoom(slug, userId);
+  res.json({
+    success: true,
+    data: {
+      room: {
+        id: result.room.id,
+        roomCode: result.room.roomCode,
+        name: result.room.name,
+        description: result.room.description,
+        isPublic: true,
+      },
+      membership: {
+        id: result.membership.id,
+        anonymousName: result.membership.anonymousName,
+        anonymousAvatar: result.membership.anonymousAvatar,
+        role: result.membership.role,
+        identityVisible: result.membership.identityVisible,
+      },
+    },
+  });
+}
+
+// ──────────────────────────────────────────────
 // GET /api/rooms/:roomCode — Get Room
 // ──────────────────────────────────────────────
 export async function getRoomHandler(req: Request, res: Response): Promise<void> {
@@ -218,7 +258,14 @@ export async function getRoomHandler(req: Request, res: Response): Promise<void>
     return;
   }
 
-  const membership = await findMembership(room.id, userId);
+  let membership = await findMembership(room.id, userId);
+
+  // If this is an official public room and the user doesn't have membership yet, auto-join them
+  if (!membership && isOfficialPublicRoom(room.roomCode)) {
+    const joined = await joinPublicRoom(room.roomCode, userId);
+    membership = joined.membership;
+  }
+
   if (!membership || ['removed', 'banned'].includes(membership.status)) {
     res.status(403).json({ success: false, error: { code: 'NOT_A_MEMBER', message: 'You are not a member of this room.' } });
     return;
@@ -260,6 +307,16 @@ export async function getMembersHandler(req: Request, res: Response): Promise<vo
     return;
   }
 
+  const isPublic = isOfficialPublicRoom(room.roomCode);
+
+  // ── PUBLIC ROOM: Any visitor is permitted to see active members ──
+  if (isPublic) {
+    const members = await getMembersForViewer(room.id, userId, false);
+    res.json({ success: true, data: { members } });
+    return;
+  }
+
+  // ── PRIVATE ROOM: Enforce strict private membership check ──
   const viewerMembership = await findMembership(room.id, userId);
   if (!viewerMembership || ['removed', 'banned'].includes(viewerMembership.status)) {
     res.status(403).json({ success: false, error: { code: 'NOT_A_MEMBER', message: 'You are not a member of this room.' } });
@@ -287,6 +344,17 @@ export async function getMessagesHandler(req: Request, res: Response): Promise<v
     return;
   }
 
+  const isPublic = isOfficialPublicRoom(room.roomCode);
+
+  // ── PUBLIC ROOM: Any visitor is permitted to read permitted messages ──
+  if (isPublic) {
+    const messages = await getMessages(room.id, limit, before);
+    const nextCursor = messages.length > 0 ? messages[0].id : null;
+    res.json({ success: true, data: { messages, nextCursor } });
+    return;
+  }
+
+  // ── PRIVATE ROOM: Enforce strict private membership check ──
   const membership = await findMembership(room.id, userId);
   if (!membership || ['removed', 'banned'].includes(membership.status)) {
     res.status(403).json({ success: false, error: { code: 'NOT_A_MEMBER', message: 'You are not a member of this room.' } });
@@ -557,5 +625,121 @@ export async function reportMemberHandler(req: Request, res: Response): Promise<
     [room.id, userId, targetMembership?.userId || null, messageId || null, reason.trim()]
   );
 
-  res.status(201).json({ success: true });
+  res.json({ success: true, message: 'Report submitted.' });
+}
+
+// ──────────────────────────────────────────────
+// PATCH /api/rooms/:roomCode/messages/:messageId
+// ──────────────────────────────────────────────
+export async function updateMessageHandler(req: Request, res: Response): Promise<void> {
+  const roomCode = getParam(req.params.roomCode);
+  const messageId = getParam(req.params.messageId);
+  const userId = req.sessionUser!.userId;
+  const { content } = req.body;
+
+  if (!content || typeof content !== 'string' || content.trim().length < 1 || content.trim().length > 2000) {
+    res.status(400).json({ success: false, error: { code: 'INVALID_MESSAGE', message: 'Message must be 1–2000 characters.' } });
+    return;
+  }
+
+  const room = await findRoomByCode(roomCode);
+  if (!room) {
+    res.status(404).json({ success: false, error: { code: 'ROOM_NOT_FOUND', message: "This room doesn't exist." } });
+    return;
+  }
+
+  const target = await findMessageById(messageId);
+  if (!target) {
+    res.status(404).json({ success: false, error: { code: 'MESSAGE_NOT_FOUND', message: 'Message not found.' } });
+    return;
+  }
+
+  if (target.roomId !== room.id) {
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Message does not belong to this room.' } });
+    return;
+  }
+
+  // Only the AUTHOR can edit their own message
+  if (target.senderId !== userId) {
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You can only edit your own messages.' } });
+    return;
+  }
+
+  const updated = await updateMessage(messageId, content.trim());
+
+  // Broadcast update via Socket.IO if initialized
+  try {
+    const { getIo } = await import('../socket');
+    getIo().to(`room:${room.id}`).emit('message.updated', {
+      messageId: updated.id,
+      content: updated.content,
+      isEdited: true,
+    });
+  } catch {
+    // Socket broadcast is best-effort for REST
+  }
+
+  res.json({
+    success: true,
+    data: {
+      message: {
+        id: updated.id,
+        content: updated.content,
+        isEdited: true,
+      },
+    },
+  });
+}
+
+// ──────────────────────────────────────────────
+// DELETE /api/rooms/:roomCode/messages/:messageId
+// ──────────────────────────────────────────────
+export async function deleteMessageHandler(req: Request, res: Response): Promise<void> {
+  const roomCode = getParam(req.params.roomCode);
+  const messageId = getParam(req.params.messageId);
+  const userId = req.sessionUser!.userId;
+
+  const room = await findRoomByCode(roomCode);
+  if (!room) {
+    res.status(404).json({ success: false, error: { code: 'ROOM_NOT_FOUND', message: "This room doesn't exist." } });
+    return;
+  }
+
+  const target = await findMessageById(messageId);
+  if (!target) {
+    res.status(404).json({ success: false, error: { code: 'MESSAGE_NOT_FOUND', message: 'Message not found.' } });
+    return;
+  }
+
+  if (target.roomId !== room.id) {
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Message does not belong to this room.' } });
+    return;
+  }
+
+  // Only the author or room admin can delete
+  const isAuthor = target.senderId === userId;
+  let isAdmin = false;
+  if (!isAuthor) {
+    const membership = await findMembership(room.id, userId);
+    isAdmin = membership?.role === 'admin';
+  }
+
+  if (!isAuthor && !isAdmin) {
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'You can only delete your own messages.' } });
+    return;
+  }
+
+  await deleteMessage(messageId);
+
+  // Broadcast deletion via Socket.IO if initialized
+  try {
+    const { getIo } = await import('../socket');
+    getIo().to(`room:${room.id}`).emit('message.deleted', {
+      messageId,
+    });
+  } catch {
+    // Socket broadcast is best-effort for REST
+  }
+
+  res.json({ success: true, message: 'Message deleted.' });
 }

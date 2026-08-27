@@ -43,12 +43,89 @@ function rowToMember(row: Record<string, unknown>): RoomMember {
 }
 
 // ──────────────────────────────────────────────
+// Official Built-in Public Rooms
+// ──────────────────────────────────────────────
+
+export interface PublicRoomDefinition {
+  slug: string;
+  roomCode: string;
+  name: string;
+  description: string;
+}
+
+export const OFFICIAL_PUBLIC_ROOMS: PublicRoomDefinition[] = [
+  {
+    slug: 'su-vichar',
+    roomCode: 'SU-VICHAR',
+    name: 'Su Vichar / Shero-Shairi',
+    description: 'Thoughts, poetry, quotes and meaningful words.',
+  },
+  {
+    slug: 'gesu-talks',
+    roomCode: 'GESU-TALKS',
+    name: 'Gesu-Talks',
+    description: 'Casual chats, chill vibes and endless talks.',
+  },
+  {
+    slug: 'gaming',
+    roomCode: 'GAMING',
+    name: 'Gaming',
+    description: 'Find teammates, talk games, share clips and win together.',
+  },
+  {
+    slug: 'formal-talks',
+    roomCode: 'FORMAL-TALKS',
+    name: 'Formal-Talks',
+    description: 'Professional discussions, career, skills and more.',
+  },
+];
+
+export function isOfficialPublicRoom(codeOrSlug: string): boolean {
+  if (!codeOrSlug) return false;
+  const norm = codeOrSlug.trim().toLowerCase();
+  return OFFICIAL_PUBLIC_ROOMS.some(
+    (r) => r.slug.toLowerCase() === norm || r.roomCode.toLowerCase() === norm
+  );
+}
+
+export function getPublicRoomDef(codeOrSlug: string): PublicRoomDefinition | undefined {
+  if (!codeOrSlug) return undefined;
+  const norm = codeOrSlug.trim().toLowerCase();
+  return OFFICIAL_PUBLIC_ROOMS.find(
+    (r) => r.slug.toLowerCase() === norm || r.roomCode.toLowerCase() === norm
+  );
+}
+
+// ──────────────────────────────────────────────
 // Room Queries
 // ──────────────────────────────────────────────
 
 export async function findRoomByCode(roomCode: string): Promise<Room | null> {
-  const result = await query('SELECT * FROM rooms WHERE room_code = $1', [roomCode]);
-  return result.rows.length ? rowToRoom(result.rows[0]) : null;
+  const norm = roomCode.trim().toUpperCase();
+  const result = await query(
+    'SELECT * FROM rooms WHERE UPPER(room_code) = $1 OR LOWER(room_code) = LOWER($2)',
+    [norm, roomCode.trim()]
+  );
+  if (result.rows.length) return rowToRoom(result.rows[0]);
+
+  // If this is an official public room that has not yet been initialized in DB, create it
+  const pubDef = getPublicRoomDef(roomCode);
+  if (pubDef) {
+    return ensurePublicRoomInDb(pubDef);
+  }
+
+  return null;
+}
+
+export async function ensurePublicRoomInDb(def: PublicRoomDefinition): Promise<Room> {
+  const result = await query(
+    `INSERT INTO rooms (room_code, name, description, password_hash, admin_key_hash, max_members, status)
+     VALUES ($1, $2, $3, 'PUBLIC_NO_PASSWORD', 'PUBLIC_NO_ADMIN', 200, 'active')
+     ON CONFLICT (room_code) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, status = 'active'
+     RETURNING *`,
+    [def.roomCode, def.name, def.description]
+  );
+  return rowToRoom(result.rows[0]);
 }
 
 export async function findRoomByName(name: string): Promise<Room | null> {
@@ -301,6 +378,92 @@ export async function joinRoomAsMember(
 }
 
 // ──────────────────────────────────────────────
+// Join Public Room (Guest Access — No Password)
+// ──────────────────────────────────────────────
+
+export async function joinPublicRoom(
+  roomCodeOrSlug: string,
+  userId: string
+): Promise<{ room: Room; membership: RoomMember }> {
+  const pubDef = getPublicRoomDef(roomCodeOrSlug);
+  if (!pubDef) {
+    throw Object.assign(new Error('Public room not found.'), { statusCode: 404, code: 'ROOM_NOT_FOUND' });
+  }
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    // Ensure public room exists in DB
+    let roomRes = await client.query(
+      `SELECT * FROM rooms WHERE (UPPER(room_code) = $1 OR LOWER(room_code) = $2) AND status = 'active' FOR UPDATE`,
+      [pubDef.roomCode.toUpperCase(), pubDef.slug.toLowerCase()]
+    );
+
+    if (roomRes.rows.length === 0) {
+      const insRes = await client.query(
+        `INSERT INTO rooms (room_code, name, description, password_hash, admin_key_hash, max_members, status)
+         VALUES ($1, $2, $3, 'PUBLIC_NO_PASSWORD', 'PUBLIC_NO_ADMIN', 200, 'active')
+         ON CONFLICT (room_code) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description, status = 'active'
+         RETURNING *`,
+        [pubDef.roomCode, pubDef.name, pubDef.description]
+      );
+      roomRes = insRes;
+    }
+
+    const room = rowToRoom(roomRes.rows[0]);
+
+    // Check if membership already exists for this user
+    const memberRes = await client.query(
+      'SELECT * FROM room_members WHERE room_id = $1 AND user_id = $2',
+      [room.id, userId]
+    );
+
+    if (memberRes.rows.length > 0) {
+      const existing = rowToMember(memberRes.rows[0]);
+      if (existing.status === 'banned') {
+        throw Object.assign(new Error('You are banned from this room.'), { statusCode: 403, code: 'MEMBERSHIP_BANNED' });
+      }
+      if (existing.status === 'removed') {
+        await client.query(
+          `UPDATE room_members SET status = 'active', updated_at = NOW() WHERE id = $1`,
+          [existing.id]
+        );
+        await client.query('COMMIT');
+        return { room, membership: { ...existing, status: 'active' } };
+      }
+      await client.query('COMMIT');
+      return { room, membership: existing };
+    }
+
+    // Generate unique anonymous identity inside transaction
+    const usedRes = await client.query(
+      `SELECT anonymous_name FROM room_members WHERE room_id = $1 AND status NOT IN ('removed', 'banned')`,
+      [room.id]
+    );
+    const usedNames = usedRes.rows.map((r) => r.anonymous_name as string);
+    const anonName = generateAnonymousName(usedNames);
+    const anonAvatar = generateAnonymousAvatar();
+
+    const insertRes = await client.query(
+      `INSERT INTO room_members (room_id, user_id, anonymous_name, anonymous_avatar, role, identity_visible, status)
+       VALUES ($1, $2, $3, $4, 'member', false, 'active')
+       RETURNING *`,
+      [room.id, userId, anonName, anonAvatar]
+    );
+    const membership = rowToMember(insertRes.rows[0]);
+
+    await client.query('COMMIT');
+    return { room, membership };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ──────────────────────────────────────────────
 // Join as Admin (re-authenticate)
 // ──────────────────────────────────────────────
 
@@ -375,6 +538,13 @@ export async function deleteRoom(roomId: string): Promise<void> {
   const client = await getClient();
   try {
     await client.query('BEGIN');
+
+    // Never delete official public rooms
+    const checkRoom = await client.query('SELECT room_code FROM rooms WHERE id = $1', [roomId]);
+    if (checkRoom.rows.length > 0 && isOfficialPublicRoom(checkRoom.rows[0].room_code)) {
+      await client.query('ROLLBACK');
+      return;
+    }
 
     // Collect the user IDs that belong to this room BEFORE cascading delete
     const memberRes = await client.query(
@@ -596,11 +766,13 @@ export async function getMessages(
   identityVisible: boolean;
   createdAt: Date;
   senderId: string;
+  isEdited: boolean;
 }>> {
   let sql = `
-    SELECT m.id, m.content, m.created_at, m.sender_id,
+    SELECT m.id, m.content, m.created_at, m.updated_at, m.sender_id,
            rm.anonymous_name, rm.identity_visible,
-           u.name as real_name
+           u.name as real_name,
+           (m.updated_at > m.created_at + interval '100 milliseconds') as is_edited
     FROM messages m
     JOIN users u ON u.id = m.sender_id
     LEFT JOIN room_members rm ON rm.room_id = m.room_id AND rm.user_id = m.sender_id
@@ -628,7 +800,58 @@ export async function getMessages(
         : (row.anonymous_name as string),
       identityVisible: row.identity_visible as boolean,
       createdAt: row.created_at as Date,
+      isEdited: Boolean(row.is_edited),
     }));
+}
+
+export async function findMessageById(messageId: string): Promise<{
+  id: string;
+  roomId: string;
+  senderId: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+  deletedAt?: Date;
+} | null> {
+  const result = await query(
+    `SELECT id, room_id, sender_id, content, created_at, updated_at, deleted_at
+     FROM messages
+     WHERE id = $1 AND deleted_at IS NULL`,
+    [messageId]
+  );
+  if (result.rows.length === 0) return null;
+  const r = result.rows[0];
+  return {
+    id: r.id as string,
+    roomId: r.room_id as string,
+    senderId: r.sender_id as string,
+    content: r.content as string,
+    createdAt: r.created_at as Date,
+    updatedAt: r.updated_at as Date,
+    deletedAt: r.deleted_at ? (r.deleted_at as Date) : undefined,
+  };
+}
+
+export async function updateMessage(
+  messageId: string,
+  content: string
+): Promise<{ id: string; content: string; updatedAt: Date }> {
+  const result = await query(
+    `UPDATE messages
+     SET content = $1, updated_at = NOW()
+     WHERE id = $2
+     RETURNING id, content, updated_at`,
+    [content, messageId]
+  );
+  return {
+    id: result.rows[0].id as string,
+    content: result.rows[0].content as string,
+    updatedAt: result.rows[0].updated_at as Date,
+  };
+}
+
+export async function deleteMessage(messageId: string): Promise<void> {
+  await query(`DELETE FROM messages WHERE id = $1`, [messageId]);
 }
 
 // ──────────────────────────────────────────────
@@ -646,3 +869,4 @@ export async function logModerationAction(
     [roomId, adminId, targetUserId, action]
   );
 }
+

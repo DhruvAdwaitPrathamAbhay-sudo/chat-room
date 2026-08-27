@@ -21,17 +21,23 @@
 import { Server, Socket } from 'socket.io';
 import {
   findRoomByCode,
+  findRoomById,
   findMembership,
   getMembersForViewer,
   saveMessage,
+  findMessageById,
+  updateMessage,
+  deleteMessage,
   deleteRoom,
   updateMemberStatus,
   logModerationAction,
   setIdentityVisible,
   findMembershipById,
+  isOfficialPublicRoom,
+  joinPublicRoom,
 } from '../repositories/roomRepository';
 import { query } from '../config/db';
-import { verifySession } from '../services/authService';
+import { verifySession, createOrGetUser } from '../services/authService';
 import { config } from '../config';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -107,8 +113,17 @@ function scheduleRoomDeletion(roomId: string, delayMs: number): void {
   const existing = roomDeleteTimers.get(roomId);
   if (existing) clearTimeout(existing);
 
-  const timer = setTimeout(() => {
+  const timer = setTimeout(async () => {
     roomDeleteTimers.delete(roomId);
+    try {
+      // Check if room is an official public room before deleting
+      const res = await query('SELECT room_code FROM rooms WHERE id = $1', [roomId]);
+      if (res.rows.length > 0 && isOfficialPublicRoom(res.rows[0].room_code)) {
+        return; // Never delete official public rooms
+      }
+    } catch {
+      // Ignore query error and proceed
+    }
     performRoomDeletion(roomId).catch((err) => {
       console.error(`[Room] Deletion error for ${roomId}:`, err instanceof Error ? err.message : err);
     });
@@ -164,30 +179,29 @@ export function setupSocket(io: Server): void {
   _io = io; // Store for getIo()
 
   // ── Authentication middleware ────────────────────────────────────────────
-  // All connections must present a valid veil_session cookie.
-  // The user ID is resolved server-side from the DB session — never trusted
-  // from a client payload.
+  // Resolves the authenticated user from the veil_session cookie if present.
+  // If absent or expired, auto-provisions an anonymous guest user so socket connections
+  // can participate in public rooms without handshake failure.
   io.use(async (socket, next) => {
     try {
-      // Parse the veil_session cookie from the handshake headers
       const cookieHeader = socket.handshake.headers.cookie ?? '';
       const match = cookieHeader.match(/(?:^|;\s*)veil_session=([^;]+)/);
       const token = match?.[1];
 
-      if (!token) {
-        return next(new Error('Authentication required.'));
+      let user = null;
+      if (token) {
+        user = await verifySession(token);
       }
 
-      const user = await verifySession(token);
       if (!user) {
-        return next(new Error('Invalid or expired session.'));
+        user = await createOrGetUser('Anonymous User');
       }
 
-      // Attach server-resolved identity — client payload is never trusted
       socket.data.userId = user.id;
       socket.data.userName = user.name;
       next();
-    } catch {
+    } catch (err) {
+      console.error('[Socket] io.use error:', err);
       next(new Error('Authentication failed.'));
     }
   });
@@ -195,7 +209,6 @@ export function setupSocket(io: Server): void {
   // ── Connection ────────────────────────────────────────────────────────────
 
   io.on('connection', (socket: Socket) => {
-    // Do not log userId to avoid leaking identity in plain logs
     console.log(`[Socket] Connected: ${socket.id}`);
 
     socket.emit('connection.ready', {
@@ -223,8 +236,18 @@ export function setupSocket(io: Server): void {
           return;
         }
 
-        // Verify membership from DB — never trust client-provided role/status
-        const membership = await findMembership(room.id, userId);
+        const isPublic = isOfficialPublicRoom(room.roomCode);
+
+        // Verify membership from DB
+        let membership = await findMembership(room.id, userId);
+
+        // If this is an official public room and membership is missing, auto-join as public guest
+        if (!membership && isPublic) {
+          const joined = await joinPublicRoom(room.roomCode, userId);
+          membership = joined.membership;
+        }
+
+        // For private rooms, strict membership is enforced
         if (!membership) {
           socket.emit('room.join.failed', { code: 'NOT_A_MEMBER', message: 'Join the room via the API first.' });
           return;
@@ -241,8 +264,7 @@ export function setupSocket(io: Server): void {
         const socketRoomId = `room:${room.id}`;
         await socket.join(socketRoomId);
 
-        // If a deletion was pending (e.g. all members briefly disconnected),
-        // cancel it now that a member has rejoined
+        // Cancel any pending room deletion timer
         cancelRoomDeletion(room.id);
 
         // Store server-side context for this socket
@@ -252,9 +274,11 @@ export function setupSocket(io: Server): void {
           membershipId: membership.id,
         });
         socket.data.roomId = room.id;
+        socket.data.roomCode = room.roomCode;
+        socket.data.isPublic = isPublic;
         socket.data.membershipId = membership.id;
-        // Store role as a hint — always re-verified from DB for privileged ops
         socket.data.role = membership.role;
+        socket.data.anonName = membership.anonymousName;
 
         socket.emit('room.joined', {
           roomCode: room.roomCode,
@@ -288,9 +312,9 @@ export function setupSocket(io: Server): void {
       try {
         const userId = socket.data.userId as string;
         const roomId = socket.data.roomId as string | undefined;
-        const membershipId = socket.data.membershipId as string | undefined;
+        let membershipId = socket.data.membershipId as string | undefined;
 
-        if (!roomId || !membershipId) {
+        if (!roomId) {
           socket.emit('message.rejected', { code: 'NOT_IN_ROOM', message: 'You are not in a room.' });
           return;
         }
@@ -306,8 +330,56 @@ export function setupSocket(io: Server): void {
           return;
         }
 
-        // Re-verify membership status on every message (mute / ban / remove may
-        // have happened since the socket connected)
+        const room = await findRoomById(roomId);
+        if (!room || room.status !== 'active') {
+          socket.emit('message.rejected', { code: 'ROOM_CLOSED', message: 'This room is not active.' });
+          return;
+        }
+
+        const isPublic = isOfficialPublicRoom(room.roomCode);
+
+        if (isPublic) {
+          // ── PUBLIC ROOM: Open messaging with server-assigned anonymous name ──
+          let membership = membershipId ? await findMembershipById(membershipId, roomId) : null;
+          if (!membership) {
+            const joined = await joinPublicRoom(room.roomCode, userId);
+            membership = joined.membership;
+            membershipId = membership.id;
+            socket.data.membershipId = membership.id;
+            socket.data.anonName = membership.anonymousName;
+          }
+
+          if (membership.status === 'muted') {
+            socket.emit('message.rejected', { code: 'MUTED', message: 'You are muted in this room.' });
+            return;
+          }
+          if (['removed', 'banned'].includes(membership.status)) {
+            socket.emit('message.rejected', { code: 'NOT_A_MEMBER', message: 'You are not permitted to message in this room.' });
+            return;
+          }
+
+          const message = await saveMessage(roomId, userId, trimmed);
+
+          // Public rooms always use the server-assigned anonymous name
+          io.to(`room:${roomId}`).emit('message.created', {
+            message: {
+              id: message.id,
+              content: message.content,
+              displayName: membership.anonymousName,
+              identityVisible: false,
+              senderId: membership.id,
+              createdAt: message.createdAt,
+            },
+          });
+          return;
+        }
+
+        // ── PRIVATE ROOM: Enforce strict private membership check ──
+        if (!membershipId) {
+          socket.emit('message.rejected', { code: 'NOT_IN_ROOM', message: 'You are not in a room.' });
+          return;
+        }
+
         const membership = await findMembershipById(membershipId, roomId);
         if (!membership) {
           socket.emit('message.rejected', { code: 'NOT_A_MEMBER', message: 'Membership not found.' });
@@ -322,7 +394,6 @@ export function setupSocket(io: Server): void {
           return;
         }
 
-        // Sender comes from the authenticated session — never from the client
         const message = await saveMessage(roomId, userId, trimmed);
 
         const displayName = membership.identityVisible
@@ -335,13 +406,121 @@ export function setupSocket(io: Server): void {
             content: message.content,
             displayName,
             identityVisible: membership.identityVisible,
-            senderId: membership.id, // membership id, NOT user id
+            senderId: membership.id,
             createdAt: message.createdAt,
           },
         });
       } catch (err) {
         console.error('[Socket] message.send error:', err instanceof Error ? err.message : err);
         socket.emit('message.rejected', { code: 'ERROR', message: 'Failed to send message.' });
+      }
+    });
+
+    // ── message.edit ───────────────────────────────────────────────────────
+    socket.on('message.edit', async ({ messageId, content }: { messageId: unknown; content: unknown }) => {
+      try {
+        const userId = socket.data.userId as string;
+        const roomId = socket.data.roomId as string | undefined;
+
+        if (!roomId) {
+          socket.emit('message.rejected', { code: 'NOT_IN_ROOM', message: 'You are not in a room.' });
+          return;
+        }
+
+        if (!messageId || typeof messageId !== 'string') {
+          socket.emit('message.rejected', { code: 'INVALID_PAYLOAD', message: 'messageId is required.' });
+          return;
+        }
+
+        const trimmed = typeof content === 'string' ? content.trim() : '';
+        if (trimmed.length < 1 || trimmed.length > 2000) {
+          socket.emit('message.rejected', { code: 'INVALID_MESSAGE', message: 'Message must be 1–2000 characters.' });
+          return;
+        }
+
+        if (!checkMessageRateLimit(socket.id)) {
+          socket.emit('message.rejected', { code: 'RATE_LIMITED', message: "You're editing messages too quickly." });
+          return;
+        }
+
+        const target = await findMessageById(messageId);
+        if (!target) {
+          socket.emit('message.rejected', { code: 'MESSAGE_NOT_FOUND', message: 'Message not found.' });
+          return;
+        }
+
+        if (target.roomId !== roomId) {
+          socket.emit('message.rejected', { code: 'FORBIDDEN', message: 'Message does not belong to this room.' });
+          return;
+        }
+
+        // Only the AUTHOR can edit their own message
+        if (target.senderId !== userId) {
+          socket.emit('message.rejected', { code: 'FORBIDDEN', message: 'You can only edit your own messages.' });
+          return;
+        }
+
+        const updated = await updateMessage(messageId, trimmed);
+
+        io.to(`room:${roomId}`).emit('message.updated', {
+          messageId: updated.id,
+          content: updated.content,
+          isEdited: true,
+        });
+      } catch (err) {
+        console.error('[Socket] message.edit error:', err instanceof Error ? err.message : err);
+        socket.emit('message.rejected', { code: 'ERROR', message: 'Failed to edit message.' });
+      }
+    });
+
+    // ── message.delete ─────────────────────────────────────────────────────
+    socket.on('message.delete', async ({ messageId }: { messageId: unknown }) => {
+      try {
+        const userId = socket.data.userId as string;
+        const roomId = socket.data.roomId as string | undefined;
+
+        if (!roomId) {
+          socket.emit('message.rejected', { code: 'NOT_IN_ROOM', message: 'You are not in a room.' });
+          return;
+        }
+
+        if (!messageId || typeof messageId !== 'string') {
+          socket.emit('message.rejected', { code: 'INVALID_PAYLOAD', message: 'messageId is required.' });
+          return;
+        }
+
+        const target = await findMessageById(messageId);
+        if (!target) {
+          socket.emit('message.rejected', { code: 'MESSAGE_NOT_FOUND', message: 'Message not found.' });
+          return;
+        }
+
+        if (target.roomId !== roomId) {
+          socket.emit('message.rejected', { code: 'FORBIDDEN', message: 'Message does not belong to this room.' });
+          return;
+        }
+
+        // Only the author or room admin can delete
+        const isAuthor = target.senderId === userId;
+        let isAdmin = false;
+        if (!isAuthor) {
+          const membership = await findMembership(roomId, userId);
+          isAdmin = membership?.role === 'admin';
+        }
+
+        if (!isAuthor && !isAdmin) {
+          socket.emit('message.rejected', { code: 'FORBIDDEN', message: 'You can only delete your own messages.' });
+          return;
+        }
+
+        await deleteMessage(messageId);
+
+        io.to(`room:${roomId}`).emit('message.deleted', {
+          messageId,
+        });
+      } catch (err) {
+        console.error('[Socket] message.delete error:', err instanceof Error ? err.message : err);
+        socket.emit('message.rejected', { code: 'ERROR', message: 'Failed to delete message.' });
       }
     });
 
@@ -464,12 +643,12 @@ export function setupSocket(io: Server): void {
   // reconnect; if they do, cancelRoomDeletion fires and clears the timer.
   setImmediate(async () => {
     try {
-      const result = await query("SELECT id FROM rooms WHERE status = 'active'");
-      const roomIds: string[] = result.rows.map((r) => r.id as string);
-      if (roomIds.length > 0) {
-        console.log(`[Room] Startup sweep: scheduling cleanup for ${roomIds.length} existing room(s) — 60 s reconnection window.`);
-        for (const roomId of roomIds) {
-          scheduleRoomDeletion(roomId, 60_000);
+      const result = await query("SELECT id, room_code FROM rooms WHERE status = 'active'");
+      const roomsToDelete = result.rows.filter((r) => !isOfficialPublicRoom(r.room_code as string));
+      if (roomsToDelete.length > 0) {
+        console.log(`[Room] Startup sweep: scheduling cleanup for ${roomsToDelete.length} private room(s) — 60 s reconnection window.`);
+        for (const r of roomsToDelete) {
+          scheduleRoomDeletion(r.id as string, 60_000);
         }
       }
     } catch (err) {

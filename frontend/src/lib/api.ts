@@ -149,6 +149,12 @@ export async function joinRoom(realName: string, roomName: string, password: str
   });
 }
 
+export async function joinPublicRoom(slug: string) {
+  return request<JoinRoomResponse>(`/rooms/public/${slug}/join`, {
+    method: "POST",
+  });
+}
+
 export async function clearAllRooms(globalAdminKey: string) {
   return request<{ success: true; deletedRooms: number }>("/admin/rooms/clear", {
     method: "POST",
@@ -212,6 +218,7 @@ export interface MessageItem {
   identityVisible: boolean;
   senderId: string;
   createdAt: string;
+  isEdited?: boolean;
 }
 
 export async function getMessages(
@@ -226,6 +233,29 @@ export async function getMessages(
   const qs = query.toString() ? `?${query.toString()}` : "";
   return request<{ messages: MessageItem[]; nextCursor: string | null }>(
     `/rooms/${roomCode}/messages${qs}`
+  );
+}
+
+export async function editMessage(
+  roomCode: string,
+  messageId: string,
+  content: string
+) {
+  return request<{ message: { id: string; content: string; isEdited: boolean } }>(
+    `/rooms/${roomCode}/messages/${messageId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ content }),
+    }
+  );
+}
+
+export async function deleteMessage(roomCode: string, messageId: string) {
+  return request<{ success: boolean }>(
+    `/rooms/${roomCode}/messages/${messageId}`,
+    {
+      method: "DELETE",
+    }
   );
 }
 

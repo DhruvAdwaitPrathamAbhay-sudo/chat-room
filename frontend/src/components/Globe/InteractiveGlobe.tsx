@@ -117,7 +117,7 @@ export default function InteractiveGlobe({
       controls.autoRotateSpeed = 0.4;
 
       const onStart = () => { controls.autoRotate = false; };
-      const onEnd = () => { setTimeout(() => { controls.autoRotate = true; }, 2500); };
+      const onEnd = () => { setTimeout(() => { controls.autoRotate = true; }, 1500); };
       controls.addEventListener("start", onStart);
       controls.addEventListener("end", onEnd);
     }
@@ -222,12 +222,12 @@ export default function InteractiveGlobe({
             </h3>
             <div className="space-y-1.5 text-xs">
               <div className="flex justify-between gap-4 text-gray-400">
-                <span>People Online:</span>
-                <span className="text-white font-mono font-semibold">{selectedCountry.activeUsers || 10}</span>
+                <span>Network Nodes:</span>
+                <span className="text-white font-mono font-semibold">Active</span>
               </div>
               <div className="flex justify-between gap-4 text-gray-400">
-                <span>Active Rooms:</span>
-                <span className="text-white font-mono font-semibold">{Math.floor((selectedCountry.activeUsers || 10) / 4) + 1}</span>
+                <span>Encryption:</span>
+                <span className="text-white font-mono font-semibold">Enabled</span>
               </div>
             </div>
             <p className="text-[10px] text-[var(--veil-cyan)] mt-2 font-medium">Click explore in rooms</p>
@@ -260,29 +260,16 @@ export default function InteractiveGlobe({
         </button>
       </div>
 
-      {/* Statistics overlay */}
+      {/* Hero Activity Indicator / Live Network */}
       {showStats && (
         <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 z-20 pointer-events-none">
-          <div className="flex items-center gap-4 bg-black/75 border border-white/10 backdrop-blur-xl rounded-2xl px-5 py-3 shadow-2xl">
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                <span className="text-gray-400 text-xs font-medium">People online</span>
-              </div>
-              <span className="text-white text-xl font-bold tabular-nums">
-                {DEMO_STATS.peopleOnline}
-              </span>
+          <div className="flex items-center gap-3 bg-black/80 border border-white/10 backdrop-blur-xl rounded-2xl px-4 py-2.5 shadow-2xl">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="text-white text-xs font-bold tracking-wider uppercase">Live Network</span>
             </div>
-            <div className="w-px h-10 bg-white/10" />
-            <div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" style={{ animationDelay: "0.5s" }} />
-                <span className="text-gray-400 text-xs font-medium">Active rooms</span>
-              </div>
-              <span className="text-white text-xl font-bold tabular-nums">
-                {DEMO_STATS.activeRooms}
-              </span>
-            </div>
+            <div className="w-px h-4 bg-white/15" />
+            <span className="text-gray-400 text-xs font-medium">Explore Active Spaces</span>
           </div>
         </div>
       )}

@@ -284,11 +284,25 @@ export default function LandingPage() {
         className="relative min-h-dvh flex items-center pt-16 overflow-hidden"
         style={{
           background:
-            "radial-gradient(ellipse at 72% 52%, rgba(0,60,140,0.32) 0%, transparent 55%), radial-gradient(ellipse at 28% 85%, rgba(70,0,140,0.18) 0%, transparent 45%), #040608",
+            "radial-gradient(ellipse at 75% 50%, rgba(0, 80, 180, 0.28) 0%, transparent 58%), radial-gradient(ellipse at 25% 85%, rgba(80, 0, 160, 0.16) 0%, transparent 48%), radial-gradient(circle at 50% 50%, rgba(0, 240, 255, 0.03) 0%, transparent 70%), #030508",
         }}
       >
-        {/* Subtle blue glow behind globe area */}
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[55vw] h-[55vw] max-w-[800px] max-h-[800px] rounded-full bg-blue-600/10 blur-[130px] pointer-events-none" />
+        {/* Subtle CSS star field */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-40"
+          style={{
+            backgroundImage:
+              "radial-gradient(1px 1px at 20px 30px, #ffffff, rgba(0,0,0,0)), radial-gradient(1px 1px at 40px 70px, rgba(255,255,255,0.7), rgba(0,0,0,0)), radial-gradient(1.5px 1.5px at 90px 40px, #00f0ff, rgba(0,0,0,0)), radial-gradient(1px 1px at 160px 120px, #ffffff, rgba(0,0,0,0)), radial-gradient(1.5px 1.5px at 230px 190px, rgba(255,255,255,0.8), rgba(0,0,0,0)), radial-gradient(1px 1px at 310px 80px, #00f0ff, rgba(0,0,0,0))",
+            backgroundSize: "350px 350px",
+          }}
+        />
+
+        {/* Subtle vignette */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />
+
+        {/* Subtle blue & cyan atmospheric glow behind globe */}
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[55vw] h-[55vw] max-w-[800px] max-h-[800px] rounded-full bg-blue-600/12 blur-[140px] pointer-events-none" />
+        <div className="absolute right-12 top-1/2 -translate-y-1/2 w-[35vw] h-[35vw] max-w-[500px] max-h-[500px] rounded-full bg-cyan-500/8 blur-[100px] pointer-events-none" />
 
         <div className="relative z-10 w-full max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-12 py-12 lg:py-0 grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(500px,1.1fr)] gap-8 lg:gap-4 items-center">
 
@@ -296,16 +310,16 @@ export default function LandingPage() {
           <div className="flex flex-col justify-center page-in">
 
             {/* Badge */}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-cyan-400 w-fit mb-7">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-cyan-400 w-fit mb-7 shadow-[0_0_15px_rgba(0,240,255,0.1)]">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
               Real-Time Anonymous Spaces
             </div>
 
-            {/* Headline */}
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight mb-5">
+            {/* Headline with subtle cyan light spill */}
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold leading-[1.05] tracking-tight mb-5 drop-shadow-[0_4px_24px_rgba(0,0,0,0.8)]">
               <span className="text-white">Talk freely.</span>
               <br />
-              <span className="text-cyan-400">Reveal selectively.</span>
+              <span className="text-cyan-400 drop-shadow-[0_0_35px_rgba(0,240,255,0.35)]">Reveal selectively.</span>
             </h1>
 
             {/* Subheading */}
@@ -331,7 +345,7 @@ export default function LandingPage() {
               {/* Secondary: Join Member */}
               <Link
                 href="/join"
-                className="flex items-center justify-center gap-2.5 w-full py-4 rounded-full bg-[#111]/80 border border-white/12 text-white font-semibold text-base hover:bg-white/6 hover:border-white/20 transition-all active:scale-[0.98]"
+                className="flex items-center justify-center gap-2.5 w-full py-4 rounded-full bg-[#111]/80 border border-white/12 text-white font-semibold text-base hover:bg-white/10 hover:border-white/25 transition-all active:scale-[0.98]"
               >
                 <PeopleIcon className="w-5 h-5 text-gray-400" />
                 Join as Member
@@ -340,7 +354,7 @@ export default function LandingPage() {
               {/* Secondary: Join Admin */}
               <Link
                 href="/admin"
-                className="flex items-center justify-center gap-2.5 w-full py-4 rounded-full bg-[#111]/80 border border-white/12 text-white font-semibold text-base hover:bg-white/6 hover:border-white/20 transition-all active:scale-[0.98]"
+                className="flex items-center justify-center gap-2.5 w-full py-4 rounded-full bg-[#111]/80 border border-white/12 text-white font-semibold text-base hover:bg-white/10 hover:border-white/25 transition-all active:scale-[0.98]"
               >
                 <CrownIcon className="w-4 h-4 text-gray-400" />
                 Join as Admin
@@ -376,8 +390,8 @@ export default function LandingPage() {
       {/* ────────────────────────────────────────────────────────────────────
           EXPLORE PUBLIC SPACES
       ──────────────────────────────────────────────────────────────────── */}
-      <section id="how-it-works" className="bg-[#050608] border-t border-white/5 py-20 sm:py-28 px-5 sm:px-8 lg:px-12">
-        <div className="max-w-[1400px] mx-auto">
+      <section id="how-it-works" className="bg-[#050608] border-t border-white/5 py-20 sm:py-28 px-5 sm:px-8 lg:px-12 relative overflow-hidden">
+        <div className="max-w-[1400px] mx-auto relative z-10">
           {/* Section header */}
           <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
             <span className="text-xs font-bold tracking-[0.2em] text-cyan-400 uppercase">
@@ -396,8 +410,8 @@ export default function LandingPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
 
             {/* Su Vichar / Shero-Shairi */}
-            <div className="group relative bg-gradient-to-br from-[#1a0a30] to-[#0d0620] border border-indigo-500/20 rounded-2xl p-6 hover:border-indigo-400/50 transition-all duration-300 hover:-translate-y-0.5 flex flex-col">
-              <div className="absolute inset-0 rounded-2xl bg-indigo-500/0 group-hover:bg-indigo-500/3 transition-colors duration-300 pointer-events-none" />
+            <div className="group relative bg-gradient-to-br from-[#1a0a30] to-[#0d0620] border border-indigo-500/20 rounded-2xl p-6 hover:border-indigo-400/50 transition-all duration-300 hover:-translate-y-0.5 flex flex-col shadow-lg">
+              <div className="absolute inset-0 rounded-2xl bg-indigo-500/0 group-hover:bg-indigo-500/5 transition-colors duration-300 pointer-events-none" />
               <div className="relative flex-1">
                 <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 border border-indigo-400/25 flex items-center justify-center text-indigo-300 mb-4 group-hover:border-indigo-400/50 transition-all">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -406,21 +420,21 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-white font-bold text-base mb-1.5">Su Vichar / Shero-Shairi</h3>
                 <p className="text-gray-400 text-sm leading-relaxed mb-4">Thoughts, poetry, quotes and meaningful words.</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                <div className="flex items-center gap-2 text-xs text-indigo-300/80 mb-1 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                  <span>-- online</span>
+                  <span>Public Space</span>
                 </div>
-                <p className="text-xs text-gray-600 italic truncate">Join the conversation</p>
+                <p className="text-xs text-gray-500 italic truncate">Join the conversation</p>
               </div>
-              <Link href="/join" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-indigo-500/15 border border-indigo-400/25 text-indigo-300 text-sm font-semibold hover:bg-indigo-500/25 hover:border-indigo-400/50 transition-all group-hover:text-indigo-200">
+              <Link href="/room/su-vichar" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-indigo-500/15 border border-indigo-400/25 text-indigo-300 text-sm font-semibold hover:bg-indigo-500/25 hover:border-indigo-400/50 transition-all group-hover:text-indigo-200">
                 Enter Room
                 <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
               </Link>
             </div>
 
             {/* Gesu-Talks */}
-            <div className="group relative bg-gradient-to-br from-[#2a0f00] to-[#1a0800] border border-orange-500/20 rounded-2xl p-6 hover:border-orange-400/50 transition-all duration-300 hover:-translate-y-0.5 flex flex-col">
-              <div className="absolute inset-0 rounded-2xl bg-orange-500/0 group-hover:bg-orange-500/3 transition-colors duration-300 pointer-events-none" />
+            <div className="group relative bg-gradient-to-br from-[#2a0f00] to-[#1a0800] border border-orange-500/20 rounded-2xl p-6 hover:border-orange-400/50 transition-all duration-300 hover:-translate-y-0.5 flex flex-col shadow-lg">
+              <div className="absolute inset-0 rounded-2xl bg-orange-500/0 group-hover:bg-orange-500/5 transition-colors duration-300 pointer-events-none" />
               <div className="relative flex-1">
                 <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-400/25 flex items-center justify-center text-orange-300 mb-4 group-hover:border-orange-400/50 transition-all">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -429,21 +443,21 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-white font-bold text-base mb-1.5">Gesu-Talks</h3>
                 <p className="text-gray-400 text-sm leading-relaxed mb-4">Casual chats, chill vibes and endless talks.</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                <div className="flex items-center gap-2 text-xs text-orange-300/80 mb-1 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
-                  <span>-- online</span>
+                  <span>Public Space</span>
                 </div>
-                <p className="text-xs text-gray-600 italic truncate">Join the conversation</p>
+                <p className="text-xs text-gray-500 italic truncate">Join the conversation</p>
               </div>
-              <Link href="/join" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-orange-500/15 border border-orange-400/25 text-orange-300 text-sm font-semibold hover:bg-orange-500/25 hover:border-orange-400/50 transition-all group-hover:text-orange-200">
+              <Link href="/room/gesu-talks" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-orange-500/15 border border-orange-400/25 text-orange-300 text-sm font-semibold hover:bg-orange-500/25 hover:border-orange-400/50 transition-all group-hover:text-orange-200">
                 Enter Room
                 <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
               </Link>
             </div>
 
             {/* Gaming */}
-            <div className="group relative bg-gradient-to-br from-[#001a2a] to-[#000f1a] border border-cyan-500/20 rounded-2xl p-6 hover:border-cyan-400/50 transition-all duration-300 hover:-translate-y-0.5 flex flex-col">
-              <div className="absolute inset-0 rounded-2xl bg-cyan-500/0 group-hover:bg-cyan-500/3 transition-colors duration-300 pointer-events-none" />
+            <div className="group relative bg-gradient-to-br from-[#001a2a] to-[#000f1a] border border-cyan-500/20 rounded-2xl p-6 hover:border-cyan-400/50 transition-all duration-300 hover:-translate-y-0.5 flex flex-col shadow-lg">
+              <div className="absolute inset-0 rounded-2xl bg-cyan-500/0 group-hover:bg-cyan-500/5 transition-colors duration-300 pointer-events-none" />
               <div className="relative flex-1">
                 <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-400/25 flex items-center justify-center text-cyan-300 mb-4 group-hover:border-cyan-400/50 transition-all">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -452,21 +466,21 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-white font-bold text-base mb-1.5">Gaming</h3>
                 <p className="text-gray-400 text-sm leading-relaxed mb-4">Find teammates, talk games, share clips and win together.</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                <div className="flex items-center gap-2 text-xs text-cyan-300/80 mb-1 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                  <span>-- online</span>
+                  <span>Public Space</span>
                 </div>
-                <p className="text-xs text-gray-600 italic truncate">Join the conversation</p>
+                <p className="text-xs text-gray-500 italic truncate">Join the conversation</p>
               </div>
-              <Link href="/join" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-cyan-500/15 border border-cyan-400/25 text-cyan-300 text-sm font-semibold hover:bg-cyan-500/25 hover:border-cyan-400/50 transition-all group-hover:text-cyan-200">
+              <Link href="/room/gaming" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-cyan-500/15 border border-cyan-400/25 text-cyan-300 text-sm font-semibold hover:bg-cyan-500/25 hover:border-cyan-400/50 transition-all group-hover:text-cyan-200">
                 Enter Room
                 <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
               </Link>
             </div>
 
             {/* Formal-Talks */}
-            <div className="group relative bg-gradient-to-br from-[#0a0f14] to-[#060a0e] border border-slate-500/20 rounded-2xl p-6 hover:border-teal-400/40 transition-all duration-300 hover:-translate-y-0.5 flex flex-col">
-              <div className="absolute inset-0 rounded-2xl bg-teal-500/0 group-hover:bg-teal-500/3 transition-colors duration-300 pointer-events-none" />
+            <div className="group relative bg-gradient-to-br from-[#0a0f14] to-[#060a0e] border border-slate-500/20 rounded-2xl p-6 hover:border-teal-400/40 transition-all duration-300 hover:-translate-y-0.5 flex flex-col shadow-lg">
+              <div className="absolute inset-0 rounded-2xl bg-teal-500/0 group-hover:bg-teal-500/5 transition-colors duration-300 pointer-events-none" />
               <div className="relative flex-1">
                 <div className="w-11 h-11 rounded-2xl bg-teal-500/10 border border-teal-400/20 flex items-center justify-center text-teal-300 mb-4 group-hover:border-teal-400/40 transition-all">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
@@ -475,13 +489,13 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-white font-bold text-base mb-1.5">Formal-Talks</h3>
                 <p className="text-gray-400 text-sm leading-relaxed mb-4">Professional discussions, career, skills and more.</p>
-                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                <div className="flex items-center gap-2 text-xs text-teal-300/80 mb-1 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
-                  <span>-- online</span>
+                  <span>Public Space</span>
                 </div>
-                <p className="text-xs text-gray-600 italic truncate">Join the conversation</p>
+                <p className="text-xs text-gray-500 italic truncate">Join the conversation</p>
               </div>
-              <Link href="/join" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-teal-500/10 border border-teal-400/20 text-teal-300 text-sm font-semibold hover:bg-teal-500/20 hover:border-teal-400/40 transition-all group-hover:text-teal-200">
+              <Link href="/room/formal-talks" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-teal-500/10 border border-teal-400/20 text-teal-300 text-sm font-semibold hover:bg-teal-500/20 hover:border-teal-400/40 transition-all group-hover:text-teal-200">
                 Enter Room
                 <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
               </Link>
