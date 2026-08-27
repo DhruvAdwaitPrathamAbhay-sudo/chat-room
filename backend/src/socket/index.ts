@@ -28,6 +28,8 @@ import {
   findMessageById,
   updateMessage,
   deleteMessage,
+  clearRoomMessages,
+  cleanupExpiredPublicRoomMessages,
   deleteRoom,
   updateMemberStatus,
   logModerationAction,
@@ -220,6 +222,19 @@ function cancelRoomDeletion(roomId: string): void {
 
 export function setupSocket(io: Server): void {
   _io = io; // Store for getIo()
+
+  // ── 24-hour public-room message retention ────────────────────────────────
+  // Run once on startup to catch any messages that expired while the server
+  // was offline, then repeat every 5 minutes indefinitely.
+  cleanupExpiredPublicRoomMessages().catch((err) =>
+    console.error('[Retention] Initial sweep error:', err instanceof Error ? err.message : err)
+  );
+  const retentionInterval = setInterval(() => {
+    cleanupExpiredPublicRoomMessages().catch((err) =>
+      console.error('[Retention] Sweep error:', err instanceof Error ? err.message : err)
+    );
+  }, 5 * 60 * 1_000); // every 5 minutes
+  retentionInterval.unref(); // don't keep process alive for this alone
 
   // ── Authentication middleware ────────────────────────────────────────────
   // Resolves the authenticated user from the veil_session cookie if present.
@@ -570,6 +585,36 @@ export function setupSocket(io: Server): void {
       } catch (err) {
         console.error('[Socket] message.delete error:', err instanceof Error ? err.message : err);
         socket.emit('message.rejected', { code: 'ERROR', message: 'Failed to delete message.' });
+      }
+    });
+
+    // ── room.messages.clear (admin only) ──────────────────────────────────
+    socket.on('room.messages.clear', async () => {
+      try {
+        const userId = socket.data.userId as string;
+        const roomId = socket.data.roomId as string | undefined;
+
+        if (!roomId) {
+          socket.emit('message.rejected', { code: 'NOT_IN_ROOM', message: 'You are not in a room.' });
+          return;
+        }
+
+        // Re-verify admin role from DB — never trust socket.data.role alone
+        const membership = await findMembership(roomId, userId);
+        if (!membership || membership.role !== 'admin') {
+          socket.emit('message.rejected', { code: 'FORBIDDEN', message: 'Only room admins can clear messages.' });
+          return;
+        }
+
+        await clearRoomMessages(roomId);
+
+        // Broadcast to all clients in the room so they wipe their local list
+        io.to(`room:${roomId}`).emit('room.messages.cleared', {
+          roomId,
+        });
+      } catch (err) {
+        console.error('[Socket] room.messages.clear error:', err instanceof Error ? err.message : err);
+        socket.emit('message.rejected', { code: 'ERROR', message: 'Failed to clear messages.' });
       }
     });
 

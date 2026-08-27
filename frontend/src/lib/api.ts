@@ -310,3 +310,18 @@ export async function closeRoom(roomCode: string) {
     method: "POST",
   });
 }
+
+export async function clearRoomMessages(roomCode: string) {
+  return request<{ success: boolean; data: { clearedCount: number; message: string } }>(
+    `/rooms/${roomCode}/clear-messages`,
+    { method: "POST" }
+  );
+}
+
+/** Admin access for PUBLIC rooms — only the global admin key is required */
+export async function publicAdminAccess(roomCode: string, adminKey: string) {
+  return request<JoinRoomResponse>(`/rooms/${roomCode}/admin-access`, {
+    method: "POST",
+    body: JSON.stringify({ adminKey }),
+  });
+}

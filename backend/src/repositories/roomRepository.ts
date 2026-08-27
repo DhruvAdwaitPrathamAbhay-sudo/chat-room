@@ -1,6 +1,7 @@
 import { query, getClient } from '../config/db';
 import { config } from '../config';
 import argon2 from 'argon2';
+import { verifyGlobalAdminKey } from '../utils/adminAuth';
 import {
   generateAdminKey,
   generateAnonymousAvatar,
@@ -470,25 +471,42 @@ export async function joinPublicRoom(
 export async function authenticateAdmin(
   roomCode: string,
   userId: string,
-  password: string,
-  adminKey: string
+  password?: string,
+  adminKey?: string
 ): Promise<{ room: Room; membership: RoomMember }> {
   const room = await findRoomByCode(roomCode);
   if (!room) throw Object.assign(new Error('Room not found.'), { statusCode: 404, code: 'ROOM_NOT_FOUND' });
   if (room.status !== 'active') throw Object.assign(new Error('This room is closed.'), { statusCode: 403, code: 'ROOM_CLOSED' });
 
-  // Verify password AND admin key
-  const roomRow = await query('SELECT password_hash, admin_key_hash FROM rooms WHERE id = $1', [room.id]);
-  const [pwValid, keyValid] = await Promise.all([
-    argon2.verify(roomRow.rows[0].password_hash, password),
-    argon2.verify(roomRow.rows[0].admin_key_hash, adminKey),
-  ]);
+  const isPublic = isOfficialPublicRoom(room.roomCode);
 
-  if (!pwValid || !keyValid) {
-    throw Object.assign(new Error('Unable to authenticate with the provided credentials.'), {
-      statusCode: 403,
-      code: 'INVALID_ROOM_CREDENTIALS',
-    });
+  if (isPublic) {
+    if (!adminKey || !verifyGlobalAdminKey(adminKey)) {
+      throw Object.assign(new Error('Unable to authenticate with the provided credentials.'), {
+        statusCode: 403,
+        code: 'INVALID_ROOM_CREDENTIALS',
+      });
+    }
+  } else {
+    if (!password || !adminKey) {
+      throw Object.assign(new Error('Unable to authenticate with the provided credentials.'), {
+        statusCode: 403,
+        code: 'INVALID_ROOM_CREDENTIALS',
+      });
+    }
+    // Verify password AND admin key
+    const roomRow = await query('SELECT password_hash, admin_key_hash FROM rooms WHERE id = $1', [room.id]);
+    const [pwValid, keyValid] = await Promise.all([
+      argon2.verify(roomRow.rows[0].password_hash, password),
+      argon2.verify(roomRow.rows[0].admin_key_hash, adminKey),
+    ]);
+
+    if (!pwValid || !keyValid) {
+      throw Object.assign(new Error('Unable to authenticate with the provided credentials.'), {
+        statusCode: 403,
+        code: 'INVALID_ROOM_CREDENTIALS',
+      });
+    }
   }
 
   // Find or create admin membership for this authenticated session
@@ -758,7 +776,8 @@ export async function saveMessage(
 export async function getMessages(
   roomId: string,
   limit = 50,
-  before?: string
+  before?: string,
+  isPublic = false
 ): Promise<Array<{
   id: string;
   content: string;
@@ -781,8 +800,13 @@ export async function getMessages(
   `;
   const params: unknown[] = [roomId];
 
+  // Defense-in-depth: For public rooms, never return messages older than 24 hours
+  if (isPublic) {
+    sql += ` AND m.created_at >= NOW() - interval '24 hours'`;
+  }
+
   if (before) {
-    sql += ` AND m.created_at < (SELECT created_at FROM messages WHERE id = $2)`;
+    sql += ` AND m.created_at < (SELECT created_at FROM messages WHERE id = $${params.length + 1})`;
     params.push(before);
   }
 
@@ -853,6 +877,37 @@ export async function updateMessage(
 
 export async function deleteMessage(messageId: string): Promise<void> {
   await query(`DELETE FROM messages WHERE id = $1`, [messageId]);
+}
+
+/**
+ * Permanently deletes all messages in a specific room.
+ * Used by room admins to clear room history without deleting the room.
+ */
+export async function clearRoomMessages(roomId: string): Promise<number> {
+  const result = await query(`DELETE FROM messages WHERE room_id = $1`, [roomId]);
+  return result.rowCount ?? 0;
+}
+
+/**
+ * Permanently deletes all public-room messages older than 24 hours from PostgreSQL.
+ * Applies strictly to official public rooms and leaves private rooms unaffected.
+ */
+export async function cleanupExpiredPublicRoomMessages(): Promise<number> {
+  const sql = `
+    DELETE FROM messages
+    WHERE room_id IN (
+      SELECT id FROM rooms
+      WHERE UPPER(room_code) IN ('SU-VICHAR', 'GESU-TALKS', 'GAMING', 'FORMAL-TALKS')
+         OR LOWER(room_code) IN ('su-vichar', 'gesu-talks', 'gaming', 'formal-talks')
+    )
+    AND created_at < NOW() - interval '24 hours'
+  `;
+  const result = await query(sql);
+  const count = result.rowCount ?? 0;
+  if (count > 0) {
+    console.log(`[Retention] Permanently deleted ${count} public-room message(s) older than 24 hours.`);
+  }
+  return count;
 }
 
 // ──────────────────────────────────────────────

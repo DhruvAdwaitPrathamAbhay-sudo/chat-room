@@ -14,6 +14,7 @@ import {
   findMessageById,
   updateMessage,
   deleteMessage,
+  clearRoomMessages,
   setIdentityVisible,
   updateMemberStatus,
   closeRoom,
@@ -377,7 +378,7 @@ export async function getMessagesHandler(req: Request, res: Response): Promise<v
 
   // ── PUBLIC ROOM: Any visitor is permitted to read permitted messages ──
   if (isPublic) {
-    const messages = await getMessages(room.id, limit, before);
+    const messages = await getMessages(room.id, limit, before, true /* isPublic: filter >= 24h */);
     const nextCursor = messages.length > 0 ? messages[0].id : null;
     res.json({ success: true, data: { messages, nextCursor } });
     return;
@@ -390,7 +391,7 @@ export async function getMessagesHandler(req: Request, res: Response): Promise<v
     return;
   }
 
-  const messages = await getMessages(room.id, limit, before);
+  const messages = await getMessages(room.id, limit, before, false);
   const nextCursor = messages.length > 0 ? messages[0].id : null;
 
   res.json({ success: true, data: { messages, nextCursor } });
@@ -400,12 +401,13 @@ export async function getMessagesHandler(req: Request, res: Response): Promise<v
 // POST /api/rooms/:roomCode/members/:memberId/reveal
 // ──────────────────────────────────────────────
 export async function revealIdentityHandler(req: Request, res: Response): Promise<void> {
-  const roomCode = Array.isArray(req.params.roomCode) ? req.params.roomCode[0] : req.params.roomCode;
-  const memberId = Array.isArray(req.params.memberId) ? req.params.memberId[0] : req.params.memberId;
+  const roomCode = getParam(req.params.roomCode);
+  const memberId = getParam(req.params.memberId);
   const userId = req.sessionUser!.userId;
 
   const { roomId } = await requireRoomAdmin(roomCode, userId);
 
+  // Target member must belong to THIS room
   const target = await findMembershipById(memberId, roomId);
   if (!target) {
     res.status(404).json({ success: false, error: { code: 'MEMBER_NOT_FOUND', message: 'Member not found in this room.' } });
@@ -413,33 +415,35 @@ export async function revealIdentityHandler(req: Request, res: Response): Promis
   }
 
   const updated = await setIdentityVisible(memberId, true, userId, roomId);
+  await logModerationAction(roomId, userId, target.userId, 'identity_revealed');
 
   // Fetch real name for the broadcast (admin-resolved; not exposed to normal members
-  // — the server controls what displayName means in the event payload)
-  const memberDetails = await getMembersForViewer(roomId, userId, true);
-  const revealedMember = memberDetails.find((m) => m.id === memberId);
+  // before this action, but now officially revealed to all room participants)
+  const viewerMembers = await getMembersForViewer(roomId, userId, true);
+  const revealedMember = viewerMembers.find((m) => m.id === memberId);
+  const displayName = revealedMember?.realName ?? updated.anonymousName;
 
-  // Single broadcast with the correct resolved display name
   const io = req.app.get('io');
   io.to(`room:${roomId}`).emit('identity.revealed', {
     memberId: updated.id,
-    displayName: revealedMember?.realName ?? updated.anonymousName,
+    displayName,
     identityVisible: true,
   });
 
-  res.json({ success: true, data: { member: { id: updated.id, identityVisible: true } } });
+  res.json({ success: true, data: { member: updated } });
 }
 
 // ──────────────────────────────────────────────
 // POST /api/rooms/:roomCode/members/:memberId/hide
 // ──────────────────────────────────────────────
 export async function hideIdentityHandler(req: Request, res: Response): Promise<void> {
-  const roomCode = Array.isArray(req.params.roomCode) ? req.params.roomCode[0] : req.params.roomCode;
-  const memberId = Array.isArray(req.params.memberId) ? req.params.memberId[0] : req.params.memberId;
+  const roomCode = getParam(req.params.roomCode);
+  const memberId = getParam(req.params.memberId);
   const userId = req.sessionUser!.userId;
 
   const { roomId } = await requireRoomAdmin(roomCode, userId);
 
+  // Target member must belong to THIS room
   const target = await findMembershipById(memberId, roomId);
   if (!target) {
     res.status(404).json({ success: false, error: { code: 'MEMBER_NOT_FOUND', message: 'Member not found in this room.' } });
@@ -447,6 +451,7 @@ export async function hideIdentityHandler(req: Request, res: Response): Promise<
   }
 
   const updated = await setIdentityVisible(memberId, false, userId, roomId);
+  await logModerationAction(roomId, userId, target.userId, 'identity_hidden');
 
   const io = req.app.get('io');
   io.to(`room:${roomId}`).emit('identity.hidden', {
@@ -455,24 +460,27 @@ export async function hideIdentityHandler(req: Request, res: Response): Promise<
     identityVisible: false,
   });
 
-  res.json({ success: true, data: { member: { id: updated.id, identityVisible: false } } });
+  res.json({ success: true, data: { member: updated } });
 }
 
 // ──────────────────────────────────────────────
 // POST /api/rooms/:roomCode/members/:memberId/mute
 // ──────────────────────────────────────────────
 export async function muteMemberHandler(req: Request, res: Response): Promise<void> {
-  const roomCode = Array.isArray(req.params.roomCode) ? req.params.roomCode[0] : req.params.roomCode;
-  const memberId = Array.isArray(req.params.memberId) ? req.params.memberId[0] : req.params.memberId;
+  const roomCode = getParam(req.params.roomCode);
+  const memberId = getParam(req.params.memberId);
   const userId = req.sessionUser!.userId;
 
   const { roomId } = await requireRoomAdmin(roomCode, userId);
 
+  // Target member must belong to THIS room
   const target = await findMembershipById(memberId, roomId);
   if (!target) {
     res.status(404).json({ success: false, error: { code: 'MEMBER_NOT_FOUND', message: 'Member not found in this room.' } });
     return;
   }
+
+  // Cannot mute another admin
   if (target.role === 'admin') {
     res.status(403).json({ success: false, error: { code: 'CANNOT_MUTE_ADMIN', message: 'Cannot mute the room admin.' } });
     return;
@@ -484,22 +492,23 @@ export async function muteMemberHandler(req: Request, res: Response): Promise<vo
   const io = req.app.get('io');
   io.to(`room:${roomId}`).emit('member.muted', { memberId });
 
-  res.json({ success: true });
+  res.json({ success: true, data: { memberId } });
 }
 
 // ──────────────────────────────────────────────
 // POST /api/rooms/:roomCode/members/:memberId/unmute
 // ──────────────────────────────────────────────
 export async function unmuteMemberHandler(req: Request, res: Response): Promise<void> {
-  const roomCode = Array.isArray(req.params.roomCode) ? req.params.roomCode[0] : req.params.roomCode;
-  const memberId = Array.isArray(req.params.memberId) ? req.params.memberId[0] : req.params.memberId;
+  const roomCode = getParam(req.params.roomCode);
+  const memberId = getParam(req.params.memberId);
   const userId = req.sessionUser!.userId;
 
   const { roomId } = await requireRoomAdmin(roomCode, userId);
 
+  // Target member must belong to THIS room
   const target = await findMembershipById(memberId, roomId);
   if (!target) {
-    res.status(404).json({ success: false, error: { code: 'MEMBER_NOT_FOUND', message: 'Member not found.' } });
+    res.status(404).json({ success: false, error: { code: 'MEMBER_NOT_FOUND', message: 'Member not found in this room.' } });
     return;
   }
 
@@ -509,7 +518,7 @@ export async function unmuteMemberHandler(req: Request, res: Response): Promise<
   const io = req.app.get('io');
   io.to(`room:${roomId}`).emit('member.unmuted', { memberId });
 
-  res.json({ success: true });
+  res.json({ success: true, data: { memberId } });
 }
 
 // ──────────────────────────────────────────────
@@ -522,11 +531,14 @@ export async function removeMemberHandler(req: Request, res: Response): Promise<
 
   const { roomId } = await requireRoomAdmin(roomCode, userId);
 
+  // Target member must belong to THIS room
   const target = await findMembershipById(memberId, roomId);
   if (!target) {
-    res.status(404).json({ success: false, error: { code: 'MEMBER_NOT_FOUND', message: 'Member not found.' } });
+    res.status(404).json({ success: false, error: { code: 'MEMBER_NOT_FOUND', message: 'Member not found in this room.' } });
     return;
   }
+
+  // Cannot remove another admin
   if (target.role === 'admin') {
     res.status(403).json({ success: false, error: { code: 'CANNOT_REMOVE_ADMIN', message: 'Cannot remove the admin.' } });
     return;
@@ -536,10 +548,9 @@ export async function removeMemberHandler(req: Request, res: Response): Promise<
   await logModerationAction(roomId, userId, target.userId, 'member_removed');
 
   const io = req.app.get('io');
-  // Notify the kicked user directly, then everyone
   io.to(`room:${roomId}`).emit('member.removed', { memberId });
 
-  res.json({ success: true });
+  res.json({ success: true, data: { memberId } });
 }
 
 // ──────────────────────────────────────────────
@@ -552,11 +563,14 @@ export async function banMemberHandler(req: Request, res: Response): Promise<voi
 
   const { roomId } = await requireRoomAdmin(roomCode, userId);
 
+  // Target member must belong to THIS room
   const target = await findMembershipById(memberId, roomId);
   if (!target) {
-    res.status(404).json({ success: false, error: { code: 'MEMBER_NOT_FOUND', message: 'Member not found.' } });
+    res.status(404).json({ success: false, error: { code: 'MEMBER_NOT_FOUND', message: 'Member not found in this room.' } });
     return;
   }
+
+  // Cannot ban another admin
   if (target.role === 'admin') {
     res.status(403).json({ success: false, error: { code: 'CANNOT_BAN_ADMIN', message: 'Cannot ban the admin.' } });
     return;
@@ -771,4 +785,44 @@ export async function deleteMessageHandler(req: Request, res: Response): Promise
   }
 
   res.json({ success: true, message: 'Message deleted.' });
+}
+
+// ──────────────────────────────────────────────
+// POST /api/rooms/:roomCode/clear-messages  (Admin — clear all messages)
+// ──────────────────────────────────────────────
+export async function clearRoomMessagesHandler(req: Request, res: Response): Promise<void> {
+  const roomCode = getParam(req.params.roomCode);
+  const userId = req.sessionUser!.userId;
+
+  const room = await findRoomByCode(roomCode);
+  if (!room) {
+    res.status(404).json({ success: false, error: { code: 'ROOM_NOT_FOUND', message: "This room doesn't exist." } });
+    return;
+  }
+
+  // Verify requester is an admin of this specific room
+  const membership = await findMembership(room.id, userId);
+  if (!membership || membership.role !== 'admin') {
+    res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Only room admins can clear messages.' } });
+    return;
+  }
+
+  const count = await clearRoomMessages(room.id);
+  await logModerationAction(room.id, userId, userId, 'room_messages_cleared');
+
+  // Broadcast to room: all clients should wipe their local message list
+  try {
+    const { getIo } = await import('../socket');
+    getIo().to(`room:${room.id}`).emit('room.messages.cleared', {
+      roomId: room.id,
+      roomCode: room.roomCode,
+    });
+  } catch {
+    // best-effort
+  }
+
+  res.json({
+    success: true,
+    data: { clearedCount: count, message: 'All messages in this room have been cleared.' },
+  });
 }

@@ -17,7 +17,13 @@ import {
   ArrowLeftIcon,
   Toast,
 } from "@/components/ui";
-import { adminAccess, ApiError } from "@/lib/api";
+import { adminAccess, publicAdminAccess, ApiError } from "@/lib/api";
+
+const OFFICIAL_PUBLIC_ROOMS = ["SU-VICHAR", "GESU-TALKS", "GAMING", "FORMAL-TALKS"];
+
+function isPublicRoom(code: string): boolean {
+  return OFFICIAL_PUBLIC_ROOMS.includes(code.trim().toUpperCase());
+}
 
 export default function JoinAdminPage() {
   const router = useRouter();
@@ -26,6 +32,8 @@ export default function JoinAdminPage() {
   const [adminKey, setAdminKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const isPublic = isPublicRoom(roomCode);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,7 +44,7 @@ export default function JoinAdminPage() {
       setError("Please enter a Room ID.");
       return;
     }
-    if (!password) {
+    if (!isPublic && !password) {
       setError("Please enter the Room Password.");
       return;
     }
@@ -47,7 +55,12 @@ export default function JoinAdminPage() {
 
     setLoading(true);
     try {
-      const res = await adminAccess(code, password, adminKey.trim());
+      let res;
+      if (isPublic) {
+        res = await publicAdminAccess(code, adminKey.trim());
+      } else {
+        res = await adminAccess(code, password, adminKey.trim());
+      }
       router.push(`/admin/${res.room.roomCode}`);
     } catch (err) {
       if (err instanceof ApiError) {
@@ -74,7 +87,9 @@ export default function JoinAdminPage() {
             Enter as Admin
           </h2>
           <p className="text-xs sm:text-sm text-[var(--veil-text-muted)] mt-1.5 leading-relaxed">
-            Provide your credentials to manage this room.
+            {isPublic
+              ? "Public room — only your Global Admin Key is required."
+              : "Provide your credentials to manage this room."}
           </p>
         </div>
 
@@ -92,14 +107,16 @@ export default function JoinAdminPage() {
               required
             />
 
-            <PasswordInput
-              label="Room Password"
-              placeholder="Enter Room Password"
-              icon={<LockIcon />}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
+            {!isPublic && (
+              <PasswordInput
+                label="Room Password"
+                placeholder="Enter Room Password"
+                icon={<LockIcon />}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            )}
 
             <hr className="border-[var(--veil-border)] my-1" />
 
@@ -107,18 +124,20 @@ export default function JoinAdminPage() {
               <div className="flex items-center gap-2 mb-1.5">
                 <KeyIcon className="text-[var(--veil-cyan)] w-4 h-4" />
                 <span className="text-sm font-semibold text-[var(--veil-cyan)]">
-                  Admin Key
+                  {isPublic ? "Global Admin Key" : "Admin Key"}
                 </span>
               </div>
               <PasswordInput
-                placeholder="Your unique admin key"
+                placeholder={isPublic ? "Your global admin key" : "Your unique admin key"}
                 icon={<KeyIcon />}
                 value={adminKey}
                 onChange={(e) => setAdminKey(e.target.value)}
                 required
               />
               <p className="text-xs text-[var(--veil-text-muted)] mt-1.5">
-                Your admin key gives you control over this room.
+                {isPublic
+                  ? "Your global admin key grants moderation access to official public rooms."
+                  : "Your admin key gives you control over this room."}
               </p>
             </div>
 

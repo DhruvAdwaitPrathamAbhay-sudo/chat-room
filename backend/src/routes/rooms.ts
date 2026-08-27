@@ -10,6 +10,7 @@ import {
   getMessagesHandler,
   updateMessageHandler,
   deleteMessageHandler,
+  clearRoomMessagesHandler,
   revealIdentityHandler,
   hideIdentityHandler,
   muteMemberHandler,
@@ -37,6 +38,9 @@ router.get('/:roomCode/members', ensureAuth, getMembersHandler);
 router.get('/:roomCode/messages', ensureAuth, getMessagesHandler);
 router.patch('/:roomCode/messages/:messageId', ensureAuth, updateMessageHandler);
 router.delete('/:roomCode/messages/:messageId', ensureAuth, deleteMessageHandler);
+
+// Admin moderation — clear all messages (public room admin)
+router.post('/:roomCode/clear-messages', ensureAuth, clearRoomMessagesHandler);
 
 // Identity management (admin only — verified in controller + DB)
 router.post('/:roomCode/members/:memberId/reveal', requireAuth, revealIdentityHandler);

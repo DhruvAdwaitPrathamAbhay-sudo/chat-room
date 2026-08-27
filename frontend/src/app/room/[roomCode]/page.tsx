@@ -18,6 +18,7 @@ import {
   getRoom,
   getMessages,
   getMembers,
+  clearRoomMessages,
   MemberViewItem,
   MessageItem as ApiMessageItem,
   ApiError,
@@ -43,6 +44,10 @@ export default function RoomChatPage({
   const [deleteConfirmMessageId, setDeleteConfirmMessageId] = useState<string | null>(null);
   const [activeMenuMessageId, setActiveMenuMessageId] = useState<string | null>(null);
 
+  // Admin-only Clear Room state
+  const [showClearRoomConfirm, setShowClearRoomConfirm] = useState(false);
+  const [clearRoomLoading, setClearRoomLoading] = useState(false);
+
   const [members, setMembers] = useState<MemberViewItem[]>([]);
   const [onlineCount, setOnlineCount] = useState<number>(1);
   const [messages, setMessages] = useState<ApiMessageItem[]>([]);
@@ -51,6 +56,10 @@ export default function RoomChatPage({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Derive admin status from current member list (never trust from client payload alone)
+  const myMember = members.find((m) => m.isCurrentUser);
+  const isAdmin = myMember?.role === "admin";
 
   useEffect(() => {
     const handleOutsideClick = () => {
@@ -251,6 +260,10 @@ export default function RoomChatPage({
       setTimeout(() => router.push("/"), 2500);
     };
 
+    const handleMessagesCleared = () => {
+      setMessages([]);
+    };
+
     const handleTypingStart = (data: { memberId: string }) => {
       setTypingMembers((prev) => new Set(prev).add(data.memberId));
     };
@@ -278,6 +291,7 @@ export default function RoomChatPage({
     socket.on("member.removed", handleMemberRemoved);
     socket.on("member.banned", handleMemberRemoved);
     socket.on("room.closed", handleRoomClosed);
+    socket.on("room.messages.cleared", handleMessagesCleared);
     socket.on("typing.start", handleTypingStart);
     socket.on("typing.stop", handleTypingStop);
 
@@ -299,6 +313,7 @@ export default function RoomChatPage({
       socket.off("member.removed", handleMemberRemoved);
       socket.off("member.banned", handleMemberRemoved);
       socket.off("room.closed", handleRoomClosed);
+      socket.off("room.messages.cleared", handleMessagesCleared);
       socket.off("typing.start", handleTypingStart);
       socket.off("typing.stop", handleTypingStop);
     };
@@ -343,6 +358,19 @@ export default function RoomChatPage({
     setDeleteConfirmMessageId(null);
   };
 
+  const handleClearRoom = async () => {
+    setClearRoomLoading(true);
+    try {
+      await clearRoomMessages(roomCode);
+      setShowClearRoomConfirm(false);
+      // The room.messages.cleared socket event will clear the local list
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to clear room messages.");
+    } finally {
+      setClearRoomLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-dvh bg-[var(--veil-bg)] flex items-center justify-center">
@@ -355,7 +383,8 @@ export default function RoomChatPage({
   }
 
   return (
-    <div className="h-[100dvh] bg-[var(--veil-bg)] flex flex-col justify-between w-full md:max-w-2xl lg:max-w-3xl md:mx-auto md:border-x md:border-[var(--veil-border)]/40 md:shadow-2xl overflow-hidden">
+    <>
+      <div className="h-[100dvh] bg-[var(--veil-bg)] flex flex-col justify-between w-full md:max-w-2xl lg:max-w-3xl md:mx-auto md:border-x md:border-[var(--veil-border)]/40 md:shadow-2xl overflow-hidden">
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <header className="flex items-center justify-between px-3.5 sm:px-5 py-3 border-b border-[var(--veil-border)] bg-[var(--veil-surface)]/90 backdrop-blur-md z-20 flex-shrink-0 w-full">
         <Link
@@ -446,13 +475,25 @@ export default function RoomChatPage({
               )}
             </div>
           ))}
-          <div className="pt-4 text-center">
+          <div className="pt-4 flex flex-col items-center gap-2">
             <Link
               href={`/admin/${roomCode}`}
               className="inline-flex items-center gap-2 text-xs font-semibold text-[var(--veil-cyan)] hover:underline py-2 px-3"
             >
               <CrownIcon className="w-3.5 h-3.5" /> Switch to Admin View
             </Link>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setShowClearRoomConfirm(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-400 hover:text-red-300 hover:underline py-2 px-3 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Clear Room
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -488,9 +529,9 @@ export default function RoomChatPage({
                     </div>
                   )}
 
-                  {/* Actions menu trigger for own messages */}
-                  {isSelf && !isEditing && !isConfirmingDelete && (
-                    <div className="relative flex-shrink-0 self-center">
+                  {/* Actions menu — own messages: edit + delete. Admin on others: delete only. */}
+                  {(isSelf || isAdmin) && !isEditing && !isConfirmingDelete && (
+                    <div className={`relative flex-shrink-0 self-center ${isSelf ? "" : "order-first"}`}>
                       <button
                         type="button"
                         onClick={(e) => {
@@ -509,23 +550,25 @@ export default function RoomChatPage({
 
                       {isMenuOpen && (
                         <div
-                          className="absolute right-0 bottom-full mb-1 z-30 bg-[#1e1e1e] border border-[#383838] rounded-xl shadow-2xl py-1 min-w-[110px] text-xs page-in"
+                          className={`absolute ${isSelf ? "right-0" : "left-0"} bottom-full mb-1 z-30 bg-[#1e1e1e] border border-[#383838] rounded-xl shadow-2xl py-1 min-w-[110px] text-xs page-in`}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingMessageId(msg.id);
-                              setEditContent(msg.content);
-                              setActiveMenuMessageId(null);
-                            }}
-                            className="w-full px-3 py-1.5 text-left text-gray-200 hover:bg-white/10 hover:text-[var(--veil-cyan)] flex items-center gap-2 transition-colors"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            Edit
-                          </button>
+                          {isSelf && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingMessageId(msg.id);
+                                setEditContent(msg.content);
+                                setActiveMenuMessageId(null);
+                              }}
+                              className="w-full px-3 py-1.5 text-left text-gray-200 hover:bg-white/10 hover:text-[var(--veil-cyan)] flex items-center gap-2 transition-colors"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              Edit
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
@@ -733,7 +776,54 @@ export default function RoomChatPage({
           <DoorIcon className="w-5 h-5" />
           <span className="text-xs font-medium">Exit</span>
         </Link>
-      </nav>
-    </div>
+        </nav>
+      </div>
+
+      {/* ── Clear Room Confirmation Modal ─────────────────────────────────── */}
+      {showClearRoomConfirm && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center px-4"
+          onClick={() => !clearRoomLoading && setShowClearRoomConfirm(false)}
+        >
+          <div
+            className="bg-[var(--veil-surface)] border border-[var(--veil-border)] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold text-white mb-2">Clear this room?</h2>
+            <p className="text-sm text-[var(--veil-text-muted)] mb-6 leading-relaxed">
+              All messages in this public room will be permanently deleted.
+              The room will remain active and users can immediately continue chatting.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                disabled={clearRoomLoading}
+                onClick={() => setShowClearRoomConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-[var(--veil-border)] text-sm font-semibold text-[var(--veil-text-muted)] hover:text-white hover:border-white/40 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={clearRoomLoading}
+                onClick={handleClearRoom}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {clearRoomLoading ? (
+                  <span className="animate-spin inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full" />
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Clear Room
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
