@@ -28,10 +28,10 @@ const ARCS_DATA = [
   { startLat: 52.1326, startLng: 5.2913, endLat: 23.4241, endLng: 53.8478 },  // Netherlands to UAE
 ];
 
-// Placeholder statistics
+// Neutral stat placeholders — real data not yet wired
 const DEMO_STATS = {
-  peopleOnline: 2847,
-  activeRooms: 156,
+  peopleOnline: "--",
+  activeRooms: "--",
 };
 
 export default function InteractiveGlobe({
@@ -97,41 +97,31 @@ export default function InteractiveGlobe({
     }
   }, []);
 
-  // Configure OrbitControls zoom limits, damping, and auto-rotation
-  useEffect(() => {
+  // Called by react-globe.gl once the canvas & Three.js scene are fully ready.
+  // This is the correct place to configure OrbitControls — globeRef.current is
+  // guaranteed to be populated when this fires (unlike a useEffect([webGlOk])).
+  const handleGlobeReady = () => {
     if (!globeRef.current) return;
-    
-    // Access Three.js OrbitControls from the Globe instance
     const controls = globeRef.current.controls();
-    if (controls) {
-      controls.enableDamping = true;
-      controls.dampingFactor = 0.05;
-      controls.minDistance = 200; // Prevent infinite zoom in
-      controls.maxDistance = 600; // Prevent infinite zoom out
-      controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.45; // Slow rotation
-      
-      // Pause auto-rotation when user starts dragging
-      const onStart = () => {
-        controls.autoRotate = false;
-      };
-      // Resume auto-rotation after user interaction ends
-      const onEnd = () => {
-        // Use a timeout to avoid immediate resume during continuous gestures
-        setTimeout(() => {
-          controls.autoRotate = true;
-        }, 3000);
-      };
+    if (!controls) return;
 
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.minDistance = 200;
+    controls.maxDistance = 600;
+
+    // Respect the user's OS reduced-motion preference
+    const prefersReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!prefersReduced) {
+      controls.autoRotate = true;
+      controls.autoRotateSpeed = 0.4;
+
+      const onStart = () => { controls.autoRotate = false; };
+      const onEnd = () => { setTimeout(() => { controls.autoRotate = true; }, 2500); };
       controls.addEventListener("start", onStart);
       controls.addEventListener("end", onEnd);
-
-      return () => {
-        controls.removeEventListener("start", onStart);
-        controls.removeEventListener("end", onEnd);
-      };
     }
-  }, [webGlOk]);
+  };
 
   const handleZoomIn = () => {
     if (!globeRef.current) return;
@@ -219,6 +209,7 @@ export default function InteractiveGlobe({
         arcDashGap={2}
         arcDashAnimateTime={2000}
         arcStroke={0.04}
+        onGlobeReady={handleGlobeReady}
       />
 
       {/* Elegant floating information panel near the globe when country selected */}
@@ -279,7 +270,7 @@ export default function InteractiveGlobe({
                 <span className="text-gray-400 text-xs font-medium">People online</span>
               </div>
               <span className="text-white text-xl font-bold tabular-nums">
-                {DEMO_STATS.peopleOnline.toLocaleString()}
+                {DEMO_STATS.peopleOnline}
               </span>
             </div>
             <div className="w-px h-10 bg-white/10" />

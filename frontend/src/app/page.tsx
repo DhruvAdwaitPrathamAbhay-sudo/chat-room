@@ -280,9 +280,15 @@ export default function LandingPage() {
       {/* ────────────────────────────────────────────────────────────────────
           HERO — Two Column
       ──────────────────────────────────────────────────────────────────── */}
-      <section className="relative min-h-dvh flex items-center pt-16 overflow-hidden">
-        {/* Subtle radial glow behind globe */}
-        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[55vw] h-[55vw] max-w-[800px] max-h-[800px] rounded-full bg-blue-600/8 blur-[120px] pointer-events-none" />
+      <section
+        className="relative min-h-dvh flex items-center pt-16 overflow-hidden"
+        style={{
+          background:
+            "radial-gradient(ellipse at 72% 52%, rgba(0,60,140,0.32) 0%, transparent 55%), radial-gradient(ellipse at 28% 85%, rgba(70,0,140,0.18) 0%, transparent 45%), #040608",
+        }}
+      >
+        {/* Subtle blue glow behind globe area */}
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[55vw] h-[55vw] max-w-[800px] max-h-[800px] rounded-full bg-blue-600/10 blur-[130px] pointer-events-none" />
 
         <div className="relative z-10 w-full max-w-[1400px] mx-auto px-5 sm:px-8 lg:px-12 py-12 lg:py-0 grid grid-cols-1 lg:grid-cols-[minmax(0,0.9fr)_minmax(500px,1.1fr)] gap-8 lg:gap-4 items-center">
 
@@ -363,6 +369,124 @@ export default function LandingPage() {
               showStats
               className="w-full h-full"
             />
+          </div>
+        </div>
+      </section>
+
+      {/* ────────────────────────────────────────────────────────────────────
+          EXPLORE PUBLIC SPACES
+      ──────────────────────────────────────────────────────────────────── */}
+      <section id="how-it-works" className="bg-[#050608] border-t border-white/5 py-20 sm:py-28 px-5 sm:px-8 lg:px-12">
+        <div className="max-w-[1400px] mx-auto">
+          {/* Section header */}
+          <div className="text-center max-w-2xl mx-auto mb-12 sm:mb-16">
+            <span className="text-xs font-bold tracking-[0.2em] text-cyan-400 uppercase">
+              Public Spaces
+            </span>
+            <h2 className="mt-3 text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white leading-tight">
+              Explore public{" "}
+              <span className="text-cyan-400">rooms</span>
+            </h2>
+            <p className="mt-4 text-gray-400 text-base sm:text-lg leading-relaxed">
+              Jump into an open conversation. Stay anonymous. Leave anytime.
+            </p>
+          </div>
+
+          {/* Room cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+
+            {/* Su Vichar / Shero-Shairi */}
+            <div className="group relative bg-gradient-to-br from-[#1a0a30] to-[#0d0620] border border-indigo-500/20 rounded-2xl p-6 hover:border-indigo-400/50 transition-all duration-300 hover:-translate-y-0.5 flex flex-col">
+              <div className="absolute inset-0 rounded-2xl bg-indigo-500/0 group-hover:bg-indigo-500/3 transition-colors duration-300 pointer-events-none" />
+              <div className="relative flex-1">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-500/15 border border-indigo-400/25 flex items-center justify-center text-indigo-300 mb-4 group-hover:border-indigo-400/50 transition-all">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                  </svg>
+                </div>
+                <h3 className="text-white font-bold text-base mb-1.5">Su Vichar / Shero-Shairi</h3>
+                <p className="text-gray-400 text-sm leading-relaxed mb-4">Thoughts, poetry, quotes and meaningful words.</p>
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                  <span>-- online</span>
+                </div>
+                <p className="text-xs text-gray-600 italic truncate">Join the conversation</p>
+              </div>
+              <Link href="/join" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-indigo-500/15 border border-indigo-400/25 text-indigo-300 text-sm font-semibold hover:bg-indigo-500/25 hover:border-indigo-400/50 transition-all group-hover:text-indigo-200">
+                Enter Room
+                <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+              </Link>
+            </div>
+
+            {/* Gesu-Talks */}
+            <div className="group relative bg-gradient-to-br from-[#2a0f00] to-[#1a0800] border border-orange-500/20 rounded-2xl p-6 hover:border-orange-400/50 transition-all duration-300 hover:-translate-y-0.5 flex flex-col">
+              <div className="absolute inset-0 rounded-2xl bg-orange-500/0 group-hover:bg-orange-500/3 transition-colors duration-300 pointer-events-none" />
+              <div className="relative flex-1">
+                <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-400/25 flex items-center justify-center text-orange-300 mb-4 group-hover:border-orange-400/50 transition-all">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155" />
+                  </svg>
+                </div>
+                <h3 className="text-white font-bold text-base mb-1.5">Gesu-Talks</h3>
+                <p className="text-gray-400 text-sm leading-relaxed mb-4">Casual chats, chill vibes and endless talks.</p>
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                  <span>-- online</span>
+                </div>
+                <p className="text-xs text-gray-600 italic truncate">Join the conversation</p>
+              </div>
+              <Link href="/join" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-orange-500/15 border border-orange-400/25 text-orange-300 text-sm font-semibold hover:bg-orange-500/25 hover:border-orange-400/50 transition-all group-hover:text-orange-200">
+                Enter Room
+                <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+              </Link>
+            </div>
+
+            {/* Gaming */}
+            <div className="group relative bg-gradient-to-br from-[#001a2a] to-[#000f1a] border border-cyan-500/20 rounded-2xl p-6 hover:border-cyan-400/50 transition-all duration-300 hover:-translate-y-0.5 flex flex-col">
+              <div className="absolute inset-0 rounded-2xl bg-cyan-500/0 group-hover:bg-cyan-500/3 transition-colors duration-300 pointer-events-none" />
+              <div className="relative flex-1">
+                <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-400/25 flex items-center justify-center text-cyan-300 mb-4 group-hover:border-cyan-400/50 transition-all">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 01-.657.643 48.39 48.39 0 01-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 01-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 00-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 01-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 00.657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 01-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 005.427-.63 48.05 48.05 0 00.582-4.717.532.532 0 00-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.37 0 .713.128 1.003.349.283.215.604.401.96.401v0a.656.656 0 00.658-.663 48.422 48.422 0 00-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 01-.61-.58v0z" />
+                  </svg>
+                </div>
+                <h3 className="text-white font-bold text-base mb-1.5">Gaming</h3>
+                <p className="text-gray-400 text-sm leading-relaxed mb-4">Find teammates, talk games, share clips and win together.</p>
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <span>-- online</span>
+                </div>
+                <p className="text-xs text-gray-600 italic truncate">Join the conversation</p>
+              </div>
+              <Link href="/join" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-cyan-500/15 border border-cyan-400/25 text-cyan-300 text-sm font-semibold hover:bg-cyan-500/25 hover:border-cyan-400/50 transition-all group-hover:text-cyan-200">
+                Enter Room
+                <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+              </Link>
+            </div>
+
+            {/* Formal-Talks */}
+            <div className="group relative bg-gradient-to-br from-[#0a0f14] to-[#060a0e] border border-slate-500/20 rounded-2xl p-6 hover:border-teal-400/40 transition-all duration-300 hover:-translate-y-0.5 flex flex-col">
+              <div className="absolute inset-0 rounded-2xl bg-teal-500/0 group-hover:bg-teal-500/3 transition-colors duration-300 pointer-events-none" />
+              <div className="relative flex-1">
+                <div className="w-11 h-11 rounded-2xl bg-teal-500/10 border border-teal-400/20 flex items-center justify-center text-teal-300 mb-4 group-hover:border-teal-400/40 transition-all">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.7}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <h3 className="text-white font-bold text-base mb-1.5">Formal-Talks</h3>
+                <p className="text-gray-400 text-sm leading-relaxed mb-4">Professional discussions, career, skills and more.</p>
+                <div className="flex items-center gap-2 text-xs text-gray-500 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse" />
+                  <span>-- online</span>
+                </div>
+                <p className="text-xs text-gray-600 italic truncate">Join the conversation</p>
+              </div>
+              <Link href="/join" className="relative mt-5 flex items-center justify-center gap-1.5 w-full py-2.5 rounded-xl bg-teal-500/10 border border-teal-400/20 text-teal-300 text-sm font-semibold hover:bg-teal-500/20 hover:border-teal-400/40 transition-all group-hover:text-teal-200">
+                Enter Room
+                <svg className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>
+              </Link>
+            </div>
+
           </div>
         </div>
       </section>
