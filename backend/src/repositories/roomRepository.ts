@@ -437,20 +437,29 @@ export async function joinPublicRoom(
       return { room, membership: existing };
     }
 
-    // Generate unique anonymous identity inside transaction
+    // Check if user has a persistent profile
+    const profRes = await client.query(
+      `SELECT real_name, avatar_url FROM profiles WHERE id = $1`,
+      [userId]
+    );
+    const userProfile = profRes.rows[0];
+    const realName = userProfile?.real_name;
+    const avatarUrl = userProfile?.avatar_url;
+
+    // Generate anonymous identity only if real profile not set
     const usedRes = await client.query(
       `SELECT anonymous_name FROM room_members WHERE room_id = $1 AND status NOT IN ('removed', 'banned')`,
       [room.id]
     );
     const usedNames = usedRes.rows.map((r) => r.anonymous_name as string);
-    const anonName = generateAnonymousName(usedNames);
-    const anonAvatar = generateAnonymousAvatar();
+    const anonName = realName || generateAnonymousName(usedNames);
+    const anonAvatar = avatarUrl || generateAnonymousAvatar();
 
     const insertRes = await client.query(
       `INSERT INTO room_members (room_id, user_id, anonymous_name, anonymous_avatar, role, identity_visible, status)
-       VALUES ($1, $2, $3, $4, 'member', false, 'active')
+       VALUES ($1, $2, $3, $4, 'member', $5, 'active')
        RETURNING *`,
-      [room.id, userId, anonName, anonAvatar]
+      [room.id, userId, anonName, anonAvatar, Boolean(realName)]
     );
     const membership = rowToMember(insertRes.rows[0]);
 
@@ -608,15 +617,30 @@ export async function clearAllRooms(): Promise<number> {
   try {
     await client.query('BEGIN');
 
-    // Collect ALL user IDs across ALL rooms before deletion
+    // Find all non-official room IDs
+    const activeRooms = await client.query(
+      `SELECT id, room_code FROM rooms WHERE status = 'active'`
+    );
+    const deleteableRoomIds = activeRooms.rows
+      .filter((r) => !isOfficialPublicRoom(r.room_code))
+      .map((r) => r.id as string);
+
+    if (deleteableRoomIds.length === 0) {
+      await client.query('ROLLBACK');
+      return 0;
+    }
+
+    // Collect user IDs in these rooms before deletion
     const memberRes = await client.query(
-      'SELECT DISTINCT user_id FROM room_members'
+      `SELECT DISTINCT user_id FROM room_members WHERE room_id = ANY($1::uuid[])`,
+      [deleteableRoomIds]
     );
     const userIds: string[] = memberRes.rows.map((r) => r.user_id as string);
 
-    // Delete all rooms — CASCADE removes all room-dependent data
+    // Delete the rooms (CASCADE cleans room_members, messages, reports, moderation_actions)
     const roomRes = await client.query(
-      'DELETE FROM rooms RETURNING id'
+      `DELETE FROM rooms WHERE id = ANY($1::uuid[])`,
+      [deleteableRoomIds]
     );
     const deletedCount = roomRes.rowCount ?? 0;
 
@@ -716,9 +740,11 @@ export async function getMembersForViewer(
   const result = await query(
     `SELECT rm.id, rm.anonymous_name, rm.anonymous_avatar, rm.role,
             rm.identity_visible, rm.status, rm.user_id,
+            p.real_name as profile_real_name, p.avatar_url as profile_avatar,
             u.name as real_name
      FROM room_members rm
      JOIN users u ON u.id = rm.user_id
+     LEFT JOIN profiles p ON p.id = rm.user_id
      WHERE rm.room_id = $1 AND rm.status NOT IN ('removed', 'banned')
      ORDER BY rm.joined_at ASC`,
     [roomId]
@@ -732,12 +758,13 @@ export async function getMembersForViewer(
     // - If revealed: everyone sees real name
     // - If admin viewing: include realName in addition
     // - Otherwise: show anonymous name
-    const displayName = isRevealed ? (row.real_name as string) : (row.anonymous_name as string);
+    const effectiveRealName = (row.profile_real_name || row.real_name) as string;
+    const displayName = isRevealed ? effectiveRealName : (row.anonymous_name as string);
 
     const view: MemberView = {
       id: row.id as string,
       displayName,
-      avatar: row.anonymous_avatar as string,
+      avatar: (row.profile_avatar || row.anonymous_avatar) as string,
       role: row.role as 'member' | 'admin',
       identityVisible: row.identity_visible as boolean,
       status: row.status as string,
@@ -746,7 +773,7 @@ export async function getMembersForViewer(
 
     // Admins also see realName for all members
     if (viewerIsAdmin) {
-      view.realName = row.real_name as string;
+      view.realName = effectiveRealName;
     }
 
     return view;
@@ -785,16 +812,20 @@ export async function getMessages(
   identityVisible: boolean;
   createdAt: Date;
   senderId: string;
+  authorId?: string;
+  avatarUrl?: string | null;
   isEdited: boolean;
 }>> {
   let sql = `
     SELECT m.id, m.content, m.created_at, m.updated_at,
            rm.id as membership_id, m.sender_id as user_id,
            rm.anonymous_name, rm.identity_visible,
+           p.real_name as profile_real_name, p.avatar_url as profile_avatar,
            u.name as real_name,
            (m.updated_at > m.created_at + interval '100 milliseconds') as is_edited
     FROM messages m
     JOIN users u ON u.id = m.sender_id
+    LEFT JOIN profiles p ON p.id = m.sender_id
     LEFT JOIN room_members rm ON rm.room_id = m.room_id AND rm.user_id = m.sender_id
     WHERE m.room_id = $1 AND m.deleted_at IS NULL
   `;
@@ -816,18 +847,26 @@ export async function getMessages(
   const result = await query(sql, params);
   return result.rows
     .reverse()
-    .map((row) => ({
-      id: row.id as string,
-      content: row.content as string,
-      senderId: (row.membership_id ?? row.user_id) as string,
-      displayName: row.identity_visible
-        ? (row.real_name as string)
-        : (row.anonymous_name as string),
-      identityVisible: row.identity_visible as boolean,
-      createdAt: row.created_at as Date,
-      isEdited: Boolean(row.is_edited),
-    }));
+    .map((row) => {
+      const effectiveRealName = (row.profile_real_name || row.real_name) as string;
+      const displayName = isPublic
+        ? (effectiveRealName || row.anonymous_name as string)
+        : (row.identity_visible ? effectiveRealName : (row.anonymous_name as string));
+
+      return {
+        id: row.id as string,
+        content: row.content as string,
+        senderId: (row.membership_id ?? row.user_id) as string,
+        authorId: row.user_id as string,
+        displayName,
+        avatarUrl: isPublic ? ((row.profile_avatar as string) || null) : null,
+        identityVisible: isPublic ? true : (row.identity_visible as boolean),
+        createdAt: row.created_at as Date,
+        isEdited: Boolean(row.is_edited),
+      };
+    });
 }
+
 
 export async function findMessageById(messageId: string): Promise<{
   id: string;

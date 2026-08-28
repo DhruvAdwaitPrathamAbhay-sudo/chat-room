@@ -11,6 +11,7 @@ import {
   ChatIcon,
   DoorIcon,
   CrownIcon,
+  LockIcon,
   Toast,
   Spinner,
 } from "@/components/ui";
@@ -24,6 +25,7 @@ import {
   ApiError,
 } from "@/lib/api";
 import { connectSocket } from "@/lib/socket";
+import { useAuth } from "@/context/AuthContext";
 
 export default function RoomChatPage({
   params,
@@ -34,10 +36,17 @@ export default function RoomChatPage({
   const roomCode = resolvedParams.roomCode.toUpperCase();
   const router = useRouter();
 
+  const { user, profile, loading: authLoading } = useAuth();
+
+  const isPublicRoom =
+    roomCode.startsWith("PUBLIC-") ||
+    ["SU-VICHAR", "GESU-TALKS", "GAMING", "FORMAL-TALKS"].includes(roomCode);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [roomName, setRoomName] = useState("Loading room...");
   const [activeTab, setActiveTab] = useState<"chat" | "people">("chat");
+
   const [inputContent, setInputContent] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -75,6 +84,19 @@ export default function RoomChatPage({
 
   // Load initial data and connect Socket.IO
   useEffect(() => {
+    // If public room, do not proceed until auth state is resolved
+    if (isPublicRoom) {
+      if (authLoading) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      if (!profile?.real_name || profile.real_name === "Veil Member") {
+        router.push(`/complete-profile?next=${encodeURIComponent(`/room/${roomCode.toLowerCase()}`)}`);
+        return;
+      }
+    }
+
     let isSubscribed = true;
     const socket = connectSocket();
 
@@ -124,6 +146,7 @@ export default function RoomChatPage({
     }
 
     initRoom();
+
 
     // Socket Event Listeners
     const handleJoined = (data: {
@@ -371,6 +394,75 @@ export default function RoomChatPage({
     }
   };
 
+  // ── Public Room Auth Gate: Logged-out visitor prompt ───────────────────────
+  if (isPublicRoom && authLoading) {
+    return (
+      <main className="min-h-dvh bg-[var(--veil-bg)] flex items-center justify-center">
+        <Spinner />
+      </main>
+    );
+  }
+
+  if (isPublicRoom && !user) {
+    return (
+      <main className="min-h-dvh bg-[var(--veil-bg)] flex flex-col items-center justify-center p-4 sm:p-6 page-in">
+        <div className="w-full max-w-md my-auto">
+          <div className="text-center mb-6 flex flex-col items-center">
+            <Link href="/" className="inline-block group mb-3">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--veil-cyan)] tracking-tight group-hover:opacity-90 transition-opacity">
+                Veil
+              </h1>
+            </Link>
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-cyan-400 w-fit mb-3">
+              <LockIcon className="w-3.5 h-3.5 text-[var(--veil-cyan)]" /> Public Space
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-white mt-2">
+              Sign up to continue
+            </h2>
+            <p className="text-xs sm:text-sm text-[var(--veil-text-muted)] mt-1.5 leading-relaxed max-w-sm">
+              Create your free Veil account to join public conversations.
+            </p>
+          </div>
+
+          <div className="bg-[#111113] border border-white/10 rounded-2xl p-6 sm:p-8 space-y-4 text-center shadow-2xl">
+            <Link
+              href={`/login?next=${encodeURIComponent(`/room/${roomCode.toLowerCase()}`)}`}
+              className="w-full py-3.5 px-4 rounded-full bg-cyan-400 text-black font-bold text-sm hover:bg-cyan-300 transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,240,255,0.3)] hover:shadow-[0_0_30px_rgba(0,240,255,0.5)]"
+            >
+              Continue with Email
+            </Link>
+
+            <div className="relative my-4 flex items-center justify-center">
+              <div className="w-full border-t border-white/8" />
+              <span className="absolute bg-[#111113] px-3 text-xs text-[var(--veil-text-muted)]">
+                or
+              </span>
+            </div>
+
+            <div className="text-xs text-[var(--veil-text-muted)] pt-1">
+              Already have an account?{" "}
+              <Link
+                href={`/login?mode=signin&next=${encodeURIComponent(`/room/${roomCode.toLowerCase()}`)}`}
+                className="text-[var(--veil-cyan)] font-semibold hover:underline"
+              >
+                Sign In
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-6 text-center">
+            <Link
+              href="/"
+              className="text-xs text-[var(--veil-text-dim)] hover:text-white transition-colors py-1"
+            >
+              ← Back to Home
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-dvh bg-[var(--veil-bg)] flex items-center justify-center">
@@ -507,7 +599,10 @@ export default function RoomChatPage({
             messages.map((msg) => {
               const myMember = members.find((m) => m.isCurrentUser);
               const currentMemId = myMembershipId || myMember?.id;
-              const isSelf = Boolean(currentMemId && msg.senderId === currentMemId);
+              const isSelf = Boolean(
+                (currentMemId && msg.senderId === currentMemId) ||
+                (user?.id && ((msg as any).authorId === user.id || msg.senderId === user.id))
+              );
               const isEditing = editingMessageId === msg.id;
               const isConfirmingDelete = deleteConfirmMessageId === msg.id;
               const isMenuOpen = activeMenuMessageId === msg.id;
@@ -524,8 +619,12 @@ export default function RoomChatPage({
                   }`}
                 >
                   {!isSelf && (
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[var(--veil-surface-2)] border border-[var(--veil-border)] flex items-center justify-center text-[var(--veil-text-muted)] text-xs flex-shrink-0 mb-0.5">
-                      <EyeSlashIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--veil-text-muted)]" />
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-[var(--veil-surface-2)] border border-[var(--veil-border)] flex items-center justify-center text-[var(--veil-text-muted)] text-xs flex-shrink-0 mb-0.5">
+                      {(msg as any).avatarUrl ? (
+                        <img src={(msg as any).avatarUrl} alt={msg.displayName} className="w-full h-full object-cover" />
+                      ) : (
+                        <EyeSlashIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[var(--veil-text-muted)]" />
+                      )}
                     </div>
                   )}
 

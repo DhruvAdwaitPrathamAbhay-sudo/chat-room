@@ -11,6 +11,15 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Profiles Table (Associated with Supabase auth.users)
+CREATE TABLE IF NOT EXISTS profiles (
+    id UUID PRIMARY KEY,
+    real_name VARCHAR(255) NOT NULL,
+    avatar_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Rooms Table
 CREATE TABLE IF NOT EXISTS rooms (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

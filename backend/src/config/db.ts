@@ -194,6 +194,14 @@ export async function runMigrations(): Promise<void> {
           created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS profiles (
+          id UUID PRIMARY KEY,
+          real_name VARCHAR(255) NOT NULL,
+          avatar_url TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE INDEX IF NOT EXISTS idx_room_code ON rooms(room_code);
       
       -- Close any legacy duplicate active rooms so unique index can be safely created
@@ -213,6 +221,52 @@ export async function runMigrations(): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
       CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token_hash);
       CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+      CREATE INDEX IF NOT EXISTS idx_profiles_id ON profiles(id);
+
+      -- Ensure public.users and public.profiles sync on auth.users insert/update
+      CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
+      RETURNS TRIGGER AS $$
+      DECLARE
+          user_real_name TEXT;
+          user_avatar TEXT;
+      BEGIN
+          user_real_name := COALESCE(
+              NEW.raw_user_meta_data->>'real_name',
+              NEW.raw_user_meta_data->>'full_name',
+              NEW.raw_user_meta_data->>'name',
+              'User'
+          );
+          user_avatar := COALESCE(
+              NEW.raw_user_meta_data->>'avatar_url',
+              NEW.raw_user_meta_data->>'picture'
+          );
+
+          INSERT INTO public.profiles (id, real_name, avatar_url, created_at, updated_at)
+          VALUES (NEW.id, user_real_name, user_avatar, NOW(), NOW())
+          ON CONFLICT (id) DO UPDATE
+          SET avatar_url = COALESCE(EXCLUDED.avatar_url, public.profiles.avatar_url),
+              updated_at = NOW();
+
+          INSERT INTO public.users (id, name, email, avatar_url, created_at, updated_at)
+          VALUES (NEW.id, user_real_name, NEW.email, user_avatar, NOW(), NOW())
+          ON CONFLICT (id) DO UPDATE
+          SET email = COALESCE(EXCLUDED.email, public.users.email),
+              avatar_url = COALESCE(EXCLUDED.avatar_url, public.users.avatar_url),
+              updated_at = NOW();
+
+          RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+      DO $do$
+      BEGIN
+          IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'auth' AND table_name = 'users') THEN
+              DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+              CREATE TRIGGER on_auth_user_created
+                  AFTER INSERT OR UPDATE ON auth.users
+                  FOR EACH ROW EXECUTE FUNCTION public.handle_new_auth_user();
+          END IF;
+      END $do$;
     `);
   } finally {
     client.release();

@@ -424,14 +424,21 @@ export function setupSocket(io: Server): void {
 
           const message = await saveMessage(roomId, userId, trimmed);
 
-          // Public rooms always use the server-assigned anonymous name
+          // In public rooms, query persistent profile for real name and avatar
+          const profRes = await query('SELECT real_name, avatar_url FROM profiles WHERE id = $1', [userId]);
+          const userProfile = profRes.rows[0];
+          const displayName = userProfile?.real_name || membership.anonymousName;
+          const avatarUrl = userProfile?.avatar_url || membership.anonymousAvatar || null;
+
           io.to(`room:${roomId}`).emit('message.created', {
             message: {
               id: message.id,
               content: message.content,
-              displayName: membership.anonymousName,
-              identityVisible: false,
+              displayName,
+              avatarUrl,
+              identityVisible: true,
               senderId: membership.id,
+              authorId: userId,
               createdAt: message.createdAt,
             },
           });

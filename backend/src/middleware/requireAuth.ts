@@ -1,13 +1,27 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifySession, createOrGetUser, createSession } from '../services/authService';
+import {
+  verifySession,
+  createOrGetUser,
+  createSession,
+  getAuthUserFromToken,
+} from '../services/authService';
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 const SESSION_COOKIE = 'veil_session';
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
- * requireAuth middleware: validates the session cookie and attaches the user
- * to req.sessionUser. Returns 401 if not authenticated.
+ * Extracts Bearer token from Authorization header if present.
+ */
+function getBearerToken(req: Request): string | null {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  return authHeader.substring(7).trim();
+}
+
+/**
+ * requireAuth middleware: validates the Supabase Bearer token or session cookie
+ * and attaches the user to req.sessionUser. Returns 401 if not authenticated.
  */
 export async function requireAuth(
   req: Request,
@@ -15,41 +29,17 @@ export async function requireAuth(
   next: NextFunction
 ): Promise<void> {
   try {
-    const sessionToken = req.cookies?.[SESSION_COOKIE];
-    if (!sessionToken) {
-      res.status(401).json({
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'Authentication required.' },
-      });
-      return;
+    // 1. Try Supabase Bearer token first
+    const bearerToken = getBearerToken(req);
+    if (bearerToken) {
+      const authUser = await getAuthUserFromToken(bearerToken);
+      if (authUser) {
+        req.sessionUser = { userId: authUser.id, name: authUser.name };
+        return next();
+      }
     }
 
-    const user = await verifySession(sessionToken);
-    if (!user) {
-      res.status(401).json({
-        success: false,
-        error: { code: 'INVALID_SESSION', message: 'Session expired or invalid.' },
-      });
-      return;
-    }
-
-    req.sessionUser = { userId: user.id, name: user.name };
-    next();
-  } catch (err) {
-    next(err);
-  }
-}
-
-/**
- * ensureAuth middleware: validates existing session cookie if present; if not,
- * auto-provisions a new anonymous user session and sets the HTTP-only cookie.
- */
-export async function ensureAuth(
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  try {
+    // 2. Fallback to existing session cookie
     const sessionToken = req.cookies?.[SESSION_COOKIE];
     if (sessionToken) {
       const user = await verifySession(sessionToken);
@@ -59,7 +49,46 @@ export async function ensureAuth(
       }
     }
 
-    // Auto-create anonymous user + session cookie if no valid session token exists
+    res.status(401).json({
+      success: false,
+      error: { code: 'UNAUTHORIZED', message: 'Authentication required.' },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/**
+ * ensureAuth middleware: validates Supabase Bearer token or existing session cookie;
+ * if absent, auto-provisions an anonymous guest session so guests can participate.
+ */
+export async function ensureAuth(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    // 1. Try Supabase Bearer token first
+    const bearerToken = getBearerToken(req);
+    if (bearerToken) {
+      const authUser = await getAuthUserFromToken(bearerToken);
+      if (authUser) {
+        req.sessionUser = { userId: authUser.id, name: authUser.name };
+        return next();
+      }
+    }
+
+    // 2. Try existing session cookie
+    const sessionToken = req.cookies?.[SESSION_COOKIE];
+    if (sessionToken) {
+      const user = await verifySession(sessionToken);
+      if (user) {
+        req.sessionUser = { userId: user.id, name: user.name };
+        return next();
+      }
+    }
+
+    // 3. Auto-create anonymous guest user + session cookie
     const user = await createOrGetUser('Anonymous User');
     const token = await createSession(user.id);
 
@@ -77,3 +106,4 @@ export async function ensureAuth(
     next(err);
   }
 }
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import {
   EyeSlashIcon,
@@ -11,6 +11,8 @@ import {
 import { clearAllRooms, ApiError } from "@/lib/api";
 import InteractiveGlobe from "@/components/Globe/InteractiveGlobe";
 import { CountryData } from "@/components/geographic/countries";
+import { useAuth } from "@/context/AuthContext";
+import { ProfileModal } from "@/components/ProfileModal";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Clear All Rooms Modal
@@ -177,9 +179,35 @@ const FEATURES = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function LandingPage() {
+  const { user, profile, loading: authLoading, signOut } = useAuth();
+
   const [showClearModal, setShowClearModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [, setSelectedCountry] = useState<CountryData | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    window.addEventListener("click", handleClickOutside);
+    return () => window.removeEventListener("click", handleClickOutside);
+  }, []);
+
+  const displayName = profile?.real_name || user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split("@")[0] || "Member";
+  const avatarUrl = profile?.avatar_url || null;
+  const initials = displayName
+    .trim()
+    .split(/\s+/)
+    .map((p: string) => p[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "M";
 
   return (
     <div className="min-h-dvh bg-[#080808] text-white overflow-x-hidden selection:bg-cyan-400 selection:text-black">
@@ -220,6 +248,80 @@ export default function LandingPage() {
 
           {/* Desktop right actions */}
           <div className="hidden md:flex items-center gap-3 flex-shrink-0">
+            {/* Authenticated User Menu vs Guest Sign In/Up */}
+            {!authLoading && user ? (
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setUserMenuOpen((v) => !v);
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/15 hover:border-white/25 transition-all text-xs font-semibold text-white cursor-pointer"
+                >
+                  <div className="w-6 h-6 rounded-full overflow-hidden bg-cyan-400/20 border border-cyan-400/40 text-cyan-400 flex items-center justify-center font-bold text-[11px] flex-shrink-0">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  <span className="max-w-[120px] truncate">{displayName}</span>
+                  <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {userMenuOpen && (
+                  <div
+                    className="absolute right-0 mt-2 w-52 bg-[#121212] border border-white/12 rounded-2xl shadow-2xl py-1.5 z-50 page-in text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="px-3.5 py-2 border-b border-white/8 mb-1">
+                      <p className="font-semibold text-white truncate">{displayName}</p>
+                      <p className="text-[10px] text-gray-400 truncate">{user.email}</p>
+                    </div>
+                    <Link
+                      href="/profile"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="w-full px-3.5 py-2 text-left text-gray-200 hover:bg-white/10 hover:text-cyan-400 flex items-center gap-2 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      Profile &amp; Settings
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        signOut();
+                      }}
+                      className="w-full px-3.5 py-2 text-left text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : !authLoading ? (
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className="px-4 py-1.5 text-xs font-semibold text-gray-300 hover:text-white transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/signup"
+                  className="px-4 py-1.5 rounded-full border border-cyan-400/30 bg-cyan-400/10 hover:bg-cyan-400/20 text-cyan-400 text-xs font-bold transition-all"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            ) : null}
+
             <Link
               href="/join"
               className="px-5 py-2 rounded-full border border-white/20 text-white text-sm font-semibold hover:border-white/40 hover:bg-white/5 transition-all"
@@ -232,14 +334,6 @@ export default function LandingPage() {
             >
               Create a Room
             </Link>
-            <button
-              aria-label="Toggle theme"
-              className="w-9 h-9 rounded-full border border-white/15 text-gray-400 hover:text-white hover:border-white/30 transition-all flex items-center justify-center"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
-              </svg>
-            </button>
           </div>
 
           {/* Mobile hamburger */}
@@ -259,6 +353,50 @@ export default function LandingPage() {
         {/* Mobile menu dropdown */}
         {mobileMenuOpen && (
           <div className="md:hidden border-t border-white/5 bg-[#0a0a0a] px-5 py-4 flex flex-col gap-3">
+            {user ? (
+              <div className="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-cyan-400/20 border border-cyan-400/40 text-cyan-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{displayName}</p>
+                    <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    signOut();
+                  }}
+                  className="px-3 py-1 text-xs font-semibold text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/10 cursor-pointer ml-2 flex-shrink-0"
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <Link
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-2.5 rounded-xl border border-white/15 text-white text-xs font-semibold text-center hover:bg-white/5"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href="/signup"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-2.5 rounded-xl bg-cyan-400/15 border border-cyan-400/30 text-cyan-400 text-xs font-bold text-center hover:bg-cyan-400/25"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
+
             {NAV_LINKS.map(({ label, href, active }) => (
               <a
                 key={label}
@@ -276,6 +414,10 @@ export default function LandingPage() {
           </div>
         )}
       </header>
+
+      {/* Profile Modal */}
+      {showProfileModal && <ProfileModal onClose={() => setShowProfileModal(false)} />}
+
 
       {/* ────────────────────────────────────────────────────────────────────
           HERO — Two Column

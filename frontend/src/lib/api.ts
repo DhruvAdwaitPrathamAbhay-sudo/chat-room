@@ -25,6 +25,8 @@ export interface ApiResponse<T = unknown> {
   };
 }
 
+import { supabase } from "./supabaseClient";
+
 export class ApiError extends Error {
   code: string;
 
@@ -45,6 +47,16 @@ async function request<T>(
   const headers = new Headers(options.headers || {});
   if (options.body && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
+  }
+
+  // Attach Supabase access token if present
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token && !headers.has("Authorization")) {
+      headers.set("Authorization", `Bearer ${session.access_token}`);
+    }
+  } catch {
+    // Ignore session fetch errors
   }
 
   let response: Response;
